@@ -1,42 +1,11 @@
 {
   "name": "unbarrelify",
   "version": "1.1.0",
-  "type": "module",
   "description": "Barrel file removal tool for JavaScript & TypeScript projects (ESM-only)",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "bin": {
-    "unbarrelify": "./dist/cli.js"
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "test": "node --test test/**/*.test.ts",
-    "prepack": "tsc"
-  },
-  "dependencies": {
-    "oxc-resolver": "^11.16.3",
-    "tinyglobby": "^0.2.15",
-    "typescript": "^5.9.3"
-  },
-  "devDependencies": {
-    "@types/node": "^24.10.9"
-  },
-  "engines": {
-    "node": ">=20.12.0"
-  },
   "keywords": [
+    "ESM",
     "barrel",
     "codemod",
-    "ESM",
     "exports",
     "files",
     "imports",
@@ -46,5 +15,44 @@
     "typescript"
   ],
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webpro-nl/unbarrelify.git"
+  },
+  "bin": {
+    "unbarrelify": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test test/**/*.test.ts",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "prepack": "tsc"
+  },
+  "dependencies": {
+    "oxc-resolver": "^11.16.3",
+    "tinyglobby": "^0.2.15",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.9",
+    "oxfmt": "^0.35.0",
+    "oxlint": "^1.50.0"
+  },
+  "engines": {
+    "node": ">=20.12.0"
+  },
   "packageManager": "pnpm@10.28.1"
 }

@@ -9,7 +9,7 @@ import { extractImportLine, formatExampleDiff, type ExampleCandidate } from "./d
 import { resolveModule } from "./resolver.ts";
 import { applyRewrites, buildRewrites, type RewriteContext } from "./rewriter.ts";
 import { BarrelTracker } from "./tracker.ts";
-import type { Context, File, Options, ProgressEvent, Result, Rewrites } from "./types.ts";
+import type { Context, File, Options, Result, Rewrites } from "./types.ts";
 import { DEFAULT_GLOBS, isIgnoredPath } from "./constants.ts";
 
 function detectSingleQuote(sourceFile: ts.SourceFile): boolean {
