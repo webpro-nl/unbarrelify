@@ -1,6 +1,6 @@
 {
   "name": "unbarrelify",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Barrel file removal tool for JavaScript & TypeScript projects (ESM-only)",
   "keywords": [
     "ESM",
