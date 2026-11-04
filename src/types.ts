@@ -109,6 +109,7 @@ export interface Context {
   preservedBarrels: Set<string>;
   includedBarrels: Set<string>;
   fileCache: Map<string, File>;
+  sourceFileCache?: Map<string, SourceFile>;
   isPackageEntryPoint: (filePath: string) => boolean;
   tracker: BarrelTracker;
 }
