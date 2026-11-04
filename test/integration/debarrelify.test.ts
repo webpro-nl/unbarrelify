@@ -1,7 +1,9 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
-import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { unbarrelify } from "../../src/main.ts";
 import { copyFixture, read } from "./helpers.ts";
 
@@ -1424,6 +1426,47 @@ describe("unbarrelify integration tests", () => {
 
       const consumerContent = await read(join(fixtureDir, "consumer.ts"));
       assert.ok(consumerContent.includes('./utils?raw"'));
+    });
+  });
+
+  describe("sibling directory with the same prefix as cwd", () => {
+    test("does not delete a barrel from a sibling directory whose consumers were not scanned", async (t) => {
+      const root = realpathSync(await mkdtemp(join(tmpdir(), "sibling-prefix-")));
+      t.after(() => rm(root, { recursive: true, force: true }));
+
+      const files: Record<string, string> = {
+        "app/consumer.ts": [
+          'import { local } from "./inner/index.ts";',
+          'import { shared } from "../app-shared/internal/index.ts";',
+          "export const values = [local, shared];",
+          "",
+        ].join("\n"),
+        "app/inner/index.ts": 'export * from "./local.ts";\n',
+        "app/inner/local.ts": "export const local = 1;\n",
+        "app-shared/internal/index.ts": 'export * from "./shared.ts";\n',
+        "app-shared/internal/shared.ts": "export const shared = 2;\n",
+        "app-shared/other-consumer.ts": 'import { shared } from "./internal/index.ts";\nexport const value = shared;\n',
+      };
+      for (const [file, content] of Object.entries(files)) {
+        await mkdir(dirname(join(root, file)), { recursive: true });
+        await writeFile(join(root, file), content);
+      }
+
+      const result = await unbarrelify({
+        cwd: join(root, "app"),
+        files: ["**/*.ts"],
+        skip: [],
+        write: true,
+      });
+
+      const siblingBarrel = join(root, "app-shared/internal/index.ts");
+      assert.ok(!result.deleted.includes(siblingBarrel));
+      assert.ok(existsSync(siblingBarrel));
+      assert.equal(await read(join(root, "app-shared/other-consumer.ts")), files["app-shared/other-consumer.ts"]);
+
+      const insideBarrel = join(root, "app/inner/index.ts");
+      assert.ok(result.deleted.includes(insideBarrel));
+      assert.ok(!existsSync(insideBarrel));
     });
   });
 });
