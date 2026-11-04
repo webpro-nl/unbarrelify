@@ -114,7 +114,7 @@ async function registerExplicitBarrels(paths: string[], ctx: Context): Promise<v
     ctx.fileCache.set(barrelPath, {
       isBarrel: true,
       imports: new Map(),
-      exports: await buildExportMap(sourceFile, ctx.aliases),
+      exports: await buildExportMap(sourceFile, ctx.aliases, (ctx.sourceFileCache ??= new Map())),
       sourceFile,
       dynamicImports: new Set(),
     });

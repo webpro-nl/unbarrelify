@@ -45,7 +45,7 @@ export async function analyzeFile(filePath: string, ctx: Context): Promise<File>
   const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest);
 
   const isBarrel = checkIsBarrel(sourceFile);
-  const exports = await buildExportMap(sourceFile, ctx.aliases);
+  const exports = await buildExportMap(sourceFile, ctx.aliases, (ctx.sourceFileCache ??= new Map()));
   const imports = buildImportMap(sourceFile, ctx.aliases);
   const dynamicImports = isBarrel ? new Set<string>() : findDynamicImports(sourceFile, ctx.aliases);
 
@@ -87,9 +87,10 @@ function extractExportedNames(sourceFile: ts.SourceFile): Set<string> {
   return names;
 }
 
-const sourceFileCache = new Map<string, ts.SourceFile>();
-
-export async function getExportedNames(filePath: string): Promise<Set<string>> {
+export async function getExportedNames(
+  filePath: string,
+  sourceFileCache = new Map<string, ts.SourceFile>(),
+): Promise<Set<string>> {
   let sourceFile = sourceFileCache.get(filePath);
   if (!sourceFile) {
     const content = await readFile(filePath, "utf-8");
@@ -118,7 +119,11 @@ function extractExportedName(node: ts.Node, names: Set<string>): void {
   }
 }
 
-export async function buildExportMap(sourceFile: ts.SourceFile, aliases: PathAliases | null): Promise<ExportMap> {
+export async function buildExportMap(
+  sourceFile: ts.SourceFile,
+  aliases: PathAliases | null,
+  sourceFileCache = new Map<string, ts.SourceFile>(),
+): Promise<ExportMap> {
   const exports: ExportMap = new Map();
 
   for (const node of sourceFile.statements) {
@@ -133,7 +138,7 @@ export async function buildExportMap(sourceFile: ts.SourceFile, aliases: PathAli
     const pos = { start: node.getStart(sourceFile), end: node.end };
 
     if (isAbsolute(resolvedPath)) {
-      await processLocalExport(exports, node, resolvedPath, specifier, pos);
+      await processLocalExport(exports, node, resolvedPath, specifier, pos, sourceFileCache);
     } else {
       processExternalExport(exports, node, specifier, pos);
     }
@@ -148,6 +153,7 @@ async function processLocalExport(
   resolvedPath: string,
   specifier: string,
   pos: { start: number; end: number },
+  sourceFileCache: Map<string, ts.SourceFile>,
 ): Promise<void> {
   if (node.exportClause && ts.isNamedExports(node.exportClause)) {
     const exportedNames = new Set<string>();
@@ -175,7 +181,7 @@ async function processLocalExport(
   } else {
     const namespace =
       node.exportClause && ts.isNamespaceExport(node.exportClause) ? node.exportClause.name.text : undefined;
-    const exportedNames = await getExportedNames(resolvedPath);
+    const exportedNames = await getExportedNames(resolvedPath, sourceFileCache);
 
     mergeExport(exports, resolvedPath, {
       specifier,
