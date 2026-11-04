@@ -3,7 +3,7 @@ import { readFile, realpath, unlink, writeFile } from "node:fs/promises";
 import { styleText } from "node:util";
 import { glob } from "tinyglobby";
 import ts from "typescript";
-import { analyzeFile, buildExportMap, checkIsBarrel, parseSpecifier } from "./analyzer.ts";
+import { analyzeFile, parseSpecifier } from "./analyzer.ts";
 import { initProjectConfig } from "./config.ts";
 import { extractImportLine, formatExampleDiff, type ExampleCandidate } from "./diff.ts";
 import { resolveModule } from "./resolver.ts";
@@ -23,10 +23,6 @@ function detectSingleQuote(sourceFile: ts.SourceFile): boolean {
 }
 
 const DEFAULT_IGNORE = ["**/node_modules/**", "**/dist/**", "**/build/**", "**/out/**", "**/coverage/**", "**/*.d.ts"];
-
-async function read(filePath: string): Promise<string> {
-  return readFile(filePath, "utf-8");
-}
 
 async function write(filePath: string, content: string): Promise<void> {
   return writeFile(filePath, content, "utf-8");
@@ -94,12 +90,12 @@ async function createContext(options: Options): Promise<Context> {
 
 async function registerExplicitBarrels(paths: string[], ctx: Context): Promise<void> {
   const rel = (p: string) => relative(ctx.base, p);
+  const selectedFiles = new Map<string, File>();
 
   for (const path of paths) {
     const barrelPath = isAbsolute(path) ? path : resolve(ctx.base, path);
-    const content = await read(barrelPath);
-    const sourceFile = ts.createSourceFile(barrelPath, content, ts.ScriptTarget.Latest);
-    const isBarrelFile = checkIsBarrel(sourceFile) || ctx.includedBarrels.has(barrelPath);
+    const analysis = await analyzeFile(barrelPath, ctx);
+    const isBarrelFile = analysis.isBarrel || ctx.includedBarrels.has(barrelPath);
 
     if (!isBarrelFile) {
       console.log(`File is not a barrel: ${rel(barrelPath)}`);
@@ -111,16 +107,20 @@ async function registerExplicitBarrels(paths: string[], ctx: Context): Promise<v
       continue;
     }
 
-    ctx.fileCache.set(barrelPath, {
-      isBarrel: true,
-      imports: new Map(),
-      exports: await buildExportMap(sourceFile, ctx.aliases),
-      sourceFile,
-      dynamicImports: new Set(),
-    });
+    ctx.fileCache.set(barrelPath, { ...analysis, isBarrel: true });
 
     ctx.tracker.register(barrelPath);
     ctx.progress({ type: "barrel", path: barrelPath });
+    selectedFiles.set(barrelPath, analysis);
+  }
+
+  for (const [barrelPath, analysis] of selectedFiles) {
+    trackExplicitBarrelConsumers(analysis, barrelPath, ctx);
+    for (const [importedFilePath, importSet] of analysis.imports) {
+      for (const item of importSet) {
+        if (item.type === "export" && item.name === "*") ctx.tracker.addStarConsumer(importedFilePath, barrelPath);
+      }
+    }
   }
 }
 
@@ -176,6 +176,8 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
 
       if (ctx.only.length === 0) {
         await discoverBarrels(analysis, filePath, ctx);
+      } else {
+        trackExplicitBarrelConsumers(analysis, filePath, ctx);
       }
 
       const rewrites = await buildRewrites(analysis, filePath, ctx);
@@ -203,9 +205,7 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
 
   ctx.progress({ type: "rewriting" });
 
-  if (ctx.only.length === 0) {
-    await trackNonTsConsumers(ctx);
-  }
+  await trackNonTsConsumers(ctx);
 
   ctx.progress({ type: "done" });
 
@@ -287,6 +287,15 @@ async function discoverBarrels(analysis: File, consumerPath: string, ctx: Contex
   }
 }
 
+function trackExplicitBarrelConsumers(analysis: File, consumerPath: string, ctx: Context): void {
+  for (const dynamicImport of analysis.dynamicImports) {
+    ctx.tracker.addDynamicConsumer(dynamicImport, consumerPath);
+  }
+  for (const [importedFilePath] of analysis.imports) {
+    ctx.tracker.addConsumer(importedFilePath, consumerPath);
+  }
+}
+
 function markRewrittenBarrels(analysis: File, consumerPath: string, rewrites: Rewrites, ctx: Context): void {
   const rewrittenPositions = new Set(rewrites.keys());
 
@@ -348,7 +357,7 @@ async function trackNonTsConsumers(ctx: Context): Promise<void> {
 
         if (ctx.tracker.has(resolved)) {
           ctx.tracker.addConsumer(resolved, nonTsFile);
-        } else {
+        } else if (ctx.only.length === 0) {
           const analysis = await analyzeFile(resolved, ctx);
           if (isBarrel(resolved, analysis, ctx)) {
             ctx.tracker.register(resolved);
