@@ -96,7 +96,8 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     const aliasSpecifier = tryMapToAlias(to, aliases, originalSpecifier);
     if (aliasSpecifier) {
       const detectedExt = ext !== undefined ? ext : getExtensionFromSpecifier(originalSpecifier);
-      return detectedExt ? ensureExtension(aliasSpecifier, detectedExt) : aliasSpecifier;
+      const specifier = detectedExt ? ensureExtension(aliasSpecifier, detectedExt) : aliasSpecifier;
+      if (resolveModule(from, specifier, aliases) === to) return specifier;
     }
   }
 
@@ -104,7 +105,8 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     const aliasSpecifier = inferAliasSpecifier(originalSpecifier, to);
     if (aliasSpecifier) {
       const detectedExt = ext !== undefined ? ext : getExtensionFromSpecifier(originalSpecifier);
-      return detectedExt ? ensureExtension(aliasSpecifier, detectedExt) : aliasSpecifier;
+      const specifier = detectedExt ? ensureExtension(aliasSpecifier, detectedExt) : aliasSpecifier;
+      if (resolveModule(from, specifier, aliases ?? null) === to) return specifier;
     }
   }
 
