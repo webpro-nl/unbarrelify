@@ -460,6 +460,35 @@ describe("rewriter", () => {
       }
     });
 
+    it("resolves through cyclic star re-exports between barrels", async () => {
+      const tempDir = await createTempDir();
+      const ctx = createTestContext();
+
+      try {
+        const leafPath = join(tempDir, "leaf.ts");
+        await writeFile(leafPath, `export const foo = 1;`);
+
+        const barrelAPath = join(tempDir, "a.ts");
+        await writeFile(barrelAPath, `export * from './b';\nexport { foo } from './leaf';`);
+
+        const barrelBPath = join(tempDir, "b.ts");
+        await writeFile(barrelBPath, `export * from './a';`);
+
+        const consumerPath = join(tempDir, "consumer.ts");
+        await writeFile(consumerPath, `import { foo } from './a';`);
+
+        const analysis = await analyzeFile(consumerPath, ctx);
+
+        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
+
+        const targets = [...rewrites.values()].flatMap((posRewrites) => [...posRewrites.keys()]);
+        assert.deepEqual(targets, [leafPath]);
+        assert.equal(ctx.tracker.untraceableImports.length, 0);
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    });
+
     it("handles aliased imports", async () => {
       const tempDir = await createTempDir();
       const ctx = createTestContext();
