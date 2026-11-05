@@ -6,7 +6,7 @@ import ts from "typescript";
 import { analyzeFile, buildExportMap, checkIsBarrel, parseSpecifier } from "./analyzer.ts";
 import { initProjectConfig } from "./config.ts";
 import { extractImportLine, formatExampleDiff, type ExampleCandidate } from "./diff.ts";
-import { resolveModule } from "./resolver.ts";
+import { resolveModule, withResolutionCache } from "./resolver.ts";
 import { applyRewrites, buildRewrites, type RewriteContext } from "./rewriter.ts";
 import { BarrelTracker } from "./tracker.ts";
 import type { Context, File, Options, Result, Rewrites } from "./types.ts";
@@ -33,16 +33,18 @@ async function write(filePath: string, content: string): Promise<void> {
 }
 
 export async function unbarrelify(options: Options): Promise<Result> {
-  const ctx = await createContext(options);
-  const files = await getProjectFiles(options.files, ctx);
+  return withResolutionCache(async () => {
+    const ctx = await createContext(options);
+    const files = await getProjectFiles(options.files, ctx);
 
-  ctx.progress({ type: "files", count: files.length });
+    ctx.progress({ type: "files", count: files.length });
 
-  if (ctx.only.length > 0) {
-    await registerExplicitBarrels(ctx.only, ctx);
-  }
+    if (ctx.only.length > 0) {
+      await registerExplicitBarrels(ctx.only, ctx);
+    }
 
-  return processFiles(files, ctx);
+    return processFiles(files, ctx);
+  });
 }
 
 async function createContext(options: Options): Promise<Context> {
