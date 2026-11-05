@@ -23,7 +23,7 @@ export function parseSpecifier(specifier: string): ParsedSpecifier {
     const ch = specifier.charCodeAt(i);
     if (ch === CHAR_EXCLAMATION) {
       lastBang = i;
-    } else if (ch === CHAR_QUESTION || ch === CHAR_HASH) {
+    } else if (ch === CHAR_QUESTION || (ch === CHAR_HASH && i !== lastBang + 1)) {
       suffixStart = i;
       break;
     }
@@ -184,7 +184,7 @@ async function processLocalExport(
       exportStar: !node.exportClause,
       exportStarIsTypeOnly: !node.exportClause ? node.isTypeOnly : undefined,
       reExportedNs: namespace,
-      externalSpecifier: specifier.startsWith(".") ? undefined : specifier,
+      externalSpecifier: specifier.startsWith(".") || specifier.startsWith("#") ? undefined : specifier,
     });
   }
 }
@@ -401,7 +401,7 @@ function findDynamicImports(sourceFile: ts.SourceFile, aliases: PathAliases | nu
     if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
       const arg = node.arguments[0];
       if (arg && ts.isStringLiteral(arg)) {
-        const resolvedPath = resolveModule(sourceFile.fileName, arg.text, aliases);
+        const resolvedPath = resolveModule(sourceFile.fileName, arg.text, aliases, true);
         if (resolvedPath && isAbsolute(resolvedPath)) {
           dynamicImports.add(resolvedPath);
         }
