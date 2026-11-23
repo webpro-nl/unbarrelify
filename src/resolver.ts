@@ -68,8 +68,17 @@ function findImportEntry(
   return { target: imports[best.pattern], match: key.slice(best.star, key.length - trailer) };
 }
 
+// Node rejects a target that leaves the package or names a URL, and goes on to the next entry of an array.
+function isValidTarget(target: string): boolean {
+  if (!target.startsWith("./")) return !target.startsWith("../") && !target.startsWith("/") && !URL.canParse(target);
+  return !target
+    .slice(2)
+    .split(/[/\\]/)
+    .some((segment) => segment === "." || segment === ".." || segment === "node_modules");
+}
+
 function selectTarget(target: unknown, match: string): string | undefined {
-  if (typeof target === "string") return target.replaceAll("*", match);
+  if (typeof target === "string") return isValidTarget(target) ? target.replaceAll("*", match) : undefined;
   if (!target || typeof target !== "object") return undefined;
 
   const candidates = Array.isArray(target)

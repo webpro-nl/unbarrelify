@@ -246,6 +246,11 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { sep } from "#lib?mode";'],
     deleted: [],
   },
+  "private-key-with-query-array-invalid": {
+    consumer: "app/consumer.mjs",
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: ["app/selected.mjs"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {

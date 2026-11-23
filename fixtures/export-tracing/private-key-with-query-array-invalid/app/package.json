@@ -1,0 +1,14 @@
+{
+  "type": "module",
+  "imports": {
+    "#lib?mode": [
+      "../fallback.mjs",
+      "/fallback.mjs",
+      "node:path",
+      "./sub/../decoy.mjs",
+      "././decoy.mjs",
+      "./node_modules/decoy.mjs",
+      "./selected.mjs"
+    ]
+  }
+}
