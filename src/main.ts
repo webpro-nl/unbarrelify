@@ -1,7 +1,8 @@
+import fs from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { readFile, realpath, unlink, writeFile } from "node:fs/promises";
 import { styleText } from "node:util";
-import { glob } from "tinyglobby";
+import { glob, type GlobOptions } from "tinyglobby";
 import ts from "typescript";
 import { analyzeFile, parseSpecifier } from "./analyzer.ts";
 import { initProjectConfig } from "./config.ts";
@@ -125,9 +126,25 @@ async function registerExplicitBarrels(paths: string[], ctx: Context): Promise<v
   }
 }
 
+async function scanFiles(patterns: string | string[], options: GlobOptions): Promise<string[]> {
+  const failures: NodeJS.ErrnoException[] = [];
+  const readdir = (
+    path: fs.PathLike,
+    options: { withFileTypes: true },
+    callback: (error: NodeJS.ErrnoException | null, entries: fs.Dirent[]) => void,
+  ) =>
+    fs.readdir(path, options, (error, entries) => {
+      if (error && error.code !== "ENOENT" && error.code !== "ENOTDIR") failures.push(error);
+      callback(error, entries);
+    });
+  const files = await glob(patterns, { ...options, fs: { ...fs, readdir: readdir as typeof fs.readdir } });
+  if (failures.length > 0) throw failures[0];
+  return files;
+}
+
 async function getProjectFiles(patterns: string[] | undefined, ctx: Context): Promise<string[]> {
   if (patterns) {
-    return glob(patterns, {
+    return scanFiles(patterns, {
       cwd: ctx.base,
       onlyFiles: true,
       absolute: true,
@@ -142,7 +159,7 @@ async function getProjectFiles(patterns: string[] | undefined, ctx: Context): Pr
     return relevantFiles;
   }
 
-  return glob(DEFAULT_GLOBS, {
+  return scanFiles(DEFAULT_GLOBS, {
     cwd: ctx.base,
     onlyFiles: true,
     absolute: true,
@@ -352,7 +369,7 @@ const IMPORT_PATTERNS = [
 const NON_TS_FILE_GLOB = "**/*.{astro,html,marko,mdx,svelte,vue}";
 
 async function trackNonTsConsumers(ctx: Context): Promise<void> {
-  const nonTsFiles = await glob(NON_TS_FILE_GLOB, {
+  const nonTsFiles = await scanFiles(NON_TS_FILE_GLOB, {
     cwd: ctx.base,
     onlyFiles: true,
     absolute: true,

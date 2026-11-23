@@ -227,6 +227,44 @@ for (const [action, target, mode] of [
   });
 }
 
+for (const files of [undefined, ["**/*.ts"]]) {
+  test(
+    `stops without changes when a directory cannot be read (files: ${JSON.stringify(files)})`,
+    { skip: skipPermissions },
+    async (t) => {
+      const fixtureDir = await copyFixture(t, "unreadable-directory");
+      const locked = join(fixtureDir, "locked");
+      const visible = join(fixtureDir, "visible.ts");
+      const original = await readFile(visible, "utf-8");
+      await chmod(locked, 0o000);
+
+      try {
+        await assert.rejects(unbarrelify({ cwd: fixtureDir, files, write: true }), (error: NodeJS.ErrnoException) => {
+          assert.equal(error.code, "EACCES");
+          assert.match(error.path ?? "", /locked/);
+          return true;
+        });
+      } finally {
+        await chmod(locked, 0o755);
+      }
+      assert.ok(existsSync(join(fixtureDir, "barrel.ts")), "the hidden consumer still imports the barrel");
+      assert.equal(await readFile(visible, "utf-8"), original);
+    },
+  );
+}
+
+for (const pattern of ["missing/**/*.ts", "index.ts/**/*.ts"]) {
+  test(`finds no files for a literal prefix that is not a directory (${pattern})`, async (t) => {
+    const fixtureDir = await copyFixture(t, "simple-barrel");
+
+    const result = await unbarrelify({ cwd: fixtureDir, files: [pattern], write: true });
+
+    assert.deepEqual(result.modified, []);
+    assert.deepEqual(result.deleted, []);
+    assert.deepEqual(result.errors, []);
+  });
+}
+
 for (const options of [{ write: true }, { write: false }, { write: true, check: true }]) {
   test(`retains successful rewrite behavior for ${JSON.stringify(options)}`, async (t) => {
     const { dir, barrel, original } = await createProject(t, ["consumer.ts"]);
