@@ -1,5 +1,5 @@
 import type { Context, PreservedBarrel, UntraceableImport } from "./types.ts";
-import { isIgnoredPath } from "./constants.ts";
+import { isIgnoredPath, JS_EXT_PATTERN } from "./constants.ts";
 
 interface BarrelState {
   consumers: Set<string>;
@@ -57,7 +57,7 @@ export class BarrelTracker {
       changed = false;
       for (const [barrelPath, state] of this.barrels) {
         if (toDelete.has(barrelPath)) continue;
-        if (!barrelPath.startsWith(ctx.base)) continue;
+        if (!barrelPath.startsWith(ctx.base + "/")) continue;
         if (isIgnoredPath(barrelPath, ctx.base)) continue;
         if (state.dynamicConsumers.size > 0) continue;
         if (ctx.preservedBarrels.has(barrelPath) || ctx.isPackageEntryPoint(barrelPath)) continue;
@@ -71,7 +71,7 @@ export class BarrelTracker {
     }
 
     for (const [barrelPath, state] of this.barrels) {
-      if (!barrelPath.startsWith(ctx.base)) continue;
+      if (!barrelPath.startsWith(ctx.base + "/")) continue;
       if (isIgnoredPath(barrelPath, ctx.base)) continue;
 
       if (toDelete.has(barrelPath)) {
@@ -133,8 +133,7 @@ export class BarrelTracker {
         barrelConsumers.push(consumer);
         continue;
       }
-      const isTs = consumer.endsWith(".ts") || consumer.endsWith(".tsx");
-      if (isTs) nsConsumers.push(consumer);
+      if (JS_EXT_PATTERN.test(consumer)) nsConsumers.push(consumer);
       else nonTsConsumers.push(consumer);
     }
 
