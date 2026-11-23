@@ -1490,4 +1490,24 @@ describe("unbarrelify integration tests", () => {
       assert.ok(!existsSync(insideBarrel));
     });
   });
+
+  describe("dynamic-template-import fixture", () => {
+    for (const only of [[], ["barrel.ts"]]) {
+      test(`keeps a barrel loaded with a template literal import (only: ${JSON.stringify(only)})`, async (t) => {
+        const fixtureDir = await copyFixture(t, "dynamic-template-import");
+
+        const result = await unbarrelify({ cwd: fixtureDir, files: ["**/*.ts"], only, write: true });
+
+        assert.deepEqual(result.modified, [join(fixtureDir, "static.ts")]);
+        assert.deepEqual(result.deleted, []);
+        assert.deepEqual(result.preserved, [
+          {
+            path: join(fixtureDir, "barrel.ts"),
+            reason: "dynamic-import",
+            consumers: [join(fixtureDir, "dynamic.ts")],
+          },
+        ]);
+      });
+    }
+  });
 });
