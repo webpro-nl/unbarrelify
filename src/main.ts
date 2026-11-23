@@ -296,13 +296,8 @@ function markRewrittenBarrels(analysis: File, consumerPath: string, rewrites: Re
 
     const cached = ctx.fileCache.get(importedFilePath);
     if (cached && isBarrel(importedFilePath, cached, ctx) && ctx.tracker.has(importedFilePath)) {
-      for (const item of importSet) {
-        const posKey = `${item.pos.start}:${item.pos.end}`;
-        if (rewrittenPositions.has(posKey)) {
-          ctx.tracker.markRewritten(importedFilePath, consumerPath);
-          break;
-        }
-      }
+      const allRewritten = [...importSet].every((item) => rewrittenPositions.has(`${item.pos.start}:${item.pos.end}`));
+      if (allRewritten) ctx.tracker.markRewritten(importedFilePath, consumerPath);
     }
   }
 }

@@ -1426,4 +1426,32 @@ describe("unbarrelify integration tests", () => {
       assert.ok(consumerContent.includes('./utils?raw"'));
     });
   });
+
+  describe("untraceable-export fixture", () => {
+    test("keeps the barrel and declarations with untraceable names", async (t) => {
+      const fixtureDir = await copyFixture(t, "untraceable-export");
+
+      const result = await unbarrelify({
+        cwd: fixtureDir,
+        files: ["**/*.ts"],
+        skip: [],
+        write: true,
+      });
+
+      assert.deepEqual(result.untraceableImports.map(({ consumerPath, name }) => `${consumerPath}:${name}`).sort(), [
+        `${join(fixtureDir, "mixed.ts")}:Kind`,
+        `${join(fixtureDir, "split.ts")}:Kind`,
+      ]);
+      assert.deepEqual(result.deleted, []);
+      assert.ok(existsSync(join(fixtureDir, "index.ts")));
+      assert.equal(
+        await read(join(fixtureDir, "mixed.ts")),
+        'import { a, value, type Kind } from "./index.js";\n\nconst kind: Kind = "a";\n\nexport { a, value, kind };\n',
+      );
+      assert.equal(
+        await read(join(fixtureDir, "split.ts")),
+        'import { a } from "./a.js";\nimport type { Kind } from "./index.js";\n\nconst kind: Kind = "b";\n\nexport { a, kind };\n',
+      );
+    });
+  });
 });
