@@ -45,7 +45,7 @@ export async function analyzeFile(filePath: string, ctx: Context): Promise<File>
   const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest);
 
   const isBarrel = checkIsBarrel(sourceFile);
-  const exports = await buildExportMap(sourceFile, ctx.aliases, (ctx.sourceFileCache ??= new Map()));
+  const exports = await buildExportMap(sourceFile, ctx.aliases, ctx.sourceFileCache);
   const imports = buildImportMap(sourceFile, ctx.aliases);
   const dynamicImports = isBarrel ? new Set<string>() : findDynamicImports(sourceFile, ctx.aliases);
 

@@ -109,14 +109,21 @@ export interface Context {
   preservedBarrels: Set<string>;
   includedBarrels: Set<string>;
   fileCache: Map<string, File>;
-  sourceFileCache?: Map<string, SourceFile>;
+  sourceFileCache: Map<string, SourceFile>;
   isPackageEntryPoint: (filePath: string) => boolean;
   tracker: BarrelTracker;
 }
 
 export interface PreservedBarrel {
   path: string;
-  reason: "skip" | "namespace-import" | "non-ts-import" | "dynamic-import" | "star-reexport";
+  reason:
+    | "skip"
+    | "namespace-import"
+    | "non-ts-import"
+    | "dynamic-import"
+    | "star-reexport"
+    | "untraceable-import"
+    | "barrel-reexport";
   consumers: string[];
 }
 

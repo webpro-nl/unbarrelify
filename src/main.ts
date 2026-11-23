@@ -84,6 +84,7 @@ async function createContext(options: Options): Promise<Context> {
     preservedBarrels,
     includedBarrels,
     fileCache: new Map<string, File>(),
+    sourceFileCache: new Map(),
     isPackageEntryPoint: project.isPackageEntryPoint,
     progress,
     tracker,
@@ -114,7 +115,7 @@ async function registerExplicitBarrels(paths: string[], ctx: Context): Promise<v
     ctx.fileCache.set(barrelPath, {
       isBarrel: true,
       imports: new Map(),
-      exports: await buildExportMap(sourceFile, ctx.aliases, (ctx.sourceFileCache ??= new Map())),
+      exports: await buildExportMap(sourceFile, ctx.aliases, ctx.sourceFileCache),
       sourceFile,
       dynamicImports: new Set(),
     });
@@ -181,8 +182,6 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
       const rewrites = await buildRewrites(analysis, filePath, ctx);
       if (rewrites.size === 0) continue;
 
-      markRewrittenBarrels(analysis, filePath, rewrites, ctx);
-
       const rewriteContext = { ...baseRewriteContext, singleQuote: detectSingleQuote(analysis.sourceFile) };
       const content = applyRewrites(analysis.sourceFile, rewrites, filePath, rewriteContext);
 
@@ -193,6 +192,7 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
       if (ctx.write && !ctx.check) {
         await write(filePath, content);
       }
+      markRewrittenBarrels(analysis, filePath, rewrites, ctx);
       modified.push(filePath);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -296,13 +296,8 @@ function markRewrittenBarrels(analysis: File, consumerPath: string, rewrites: Re
 
     const cached = ctx.fileCache.get(importedFilePath);
     if (cached && isBarrel(importedFilePath, cached, ctx) && ctx.tracker.has(importedFilePath)) {
-      for (const item of importSet) {
-        const posKey = `${item.pos.start}:${item.pos.end}`;
-        if (rewrittenPositions.has(posKey)) {
-          ctx.tracker.markRewritten(importedFilePath, consumerPath);
-          break;
-        }
-      }
+      const allRewritten = [...importSet].every((item) => rewrittenPositions.has(`${item.pos.start}:${item.pos.end}`));
+      if (allRewritten) ctx.tracker.markRewritten(importedFilePath, consumerPath);
     }
   }
 }

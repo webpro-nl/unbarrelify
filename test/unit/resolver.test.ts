@@ -100,5 +100,14 @@ describe("resolver", () => {
       const result = buildSpecifier("/project/src/a.ts", "/project/src/b.tsx", { ext: ".js" });
       assert.equal(result, "./b.js");
     });
+
+    test("keeps the target's own extension for TypeScript-style specifiers", () => {
+      const options = { originalSpecifier: "./index.ts" };
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.ts", options), "./b.ts");
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.tsx", options), "./b.tsx");
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.js", options), "./b.js");
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.mts", options), "./b.mts");
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.tsx", { ext: ".ts" }), "./b.tsx");
+    });
   });
 });
