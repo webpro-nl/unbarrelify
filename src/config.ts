@@ -131,7 +131,9 @@ export function tryMapToAlias(absolutePath: string, aliases: PathAliases, origin
 }
 
 export function aliasNamesFile(specifier: string, aliases: PathAliases, filePath: string): boolean {
-  if (Object.hasOwn(aliases.paths, specifier)) return true;
+  const names = (targets: string[], captured: string) =>
+    targets.some((target) => join(aliases.baseUrl, target.replace("*", captured)) === filePath);
+  if (Object.hasOwn(aliases.paths, specifier)) return names(aliases.paths[specifier], "");
   let best: string | undefined;
   for (const pattern of Object.keys(aliases.paths)) {
     if (!pattern.includes("*") || !matchesPathPattern(pattern, specifier)) continue;
@@ -139,8 +141,7 @@ export function aliasNamesFile(specifier: string, aliases: PathAliases, filePath
   }
   if (!best) return false;
   const star = best.indexOf("*");
-  const captured = specifier.slice(star, specifier.length - (best.length - star - 1));
-  return aliases.paths[best].some((target) => join(aliases.baseUrl, target.replace("*", captured)) === filePath);
+  return names(aliases.paths[best], specifier.slice(star, specifier.length - (best.length - star - 1)));
 }
 
 function matchesPathPattern(pattern: string, specifier: string): boolean {

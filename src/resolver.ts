@@ -192,7 +192,7 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     const aliasSpecifier = tryMapToAlias(to, aliases, originalSpecifier);
     if (aliasSpecifier) {
       const detectedExt = ext !== undefined ? ext : getExtensionFromSpecifier(originalSpecifier);
-      for (const specifier of aliasCandidates(aliasSpecifier, to, detectedExt, aliases)) {
+      for (const specifier of aliasCandidates(aliasSpecifier, originalSpecifier, to, detectedExt, aliases)) {
         if (resolveModule(from, specifier, aliases) === to) return specifier;
       }
     }
@@ -202,7 +202,7 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     const aliasSpecifier = inferAliasSpecifier(originalSpecifier, to);
     if (aliasSpecifier) {
       const detectedExt = ext !== undefined ? ext : getExtensionFromSpecifier(originalSpecifier);
-      for (const specifier of aliasCandidates(aliasSpecifier, to, detectedExt, aliases)) {
+      for (const specifier of aliasCandidates(aliasSpecifier, originalSpecifier, to, detectedExt, aliases)) {
         if (resolveModule(from, specifier, aliases ?? null) === to) return specifier;
       }
     }
@@ -239,15 +239,17 @@ function specifierExtension(target: string, style: string | null): string | null
 
 function aliasCandidates(
   aliasSpecifier: string,
+  originalSpecifier: string,
   to: string,
   style: string | null,
   aliases: PathAliases | null | undefined,
 ): string[] {
   const ext = specifierExtension(to, style);
   if (!ext) return [aliasSpecifier];
-  // Without the extension, the alias is valid only where its mapping names the file; elsewhere it relies on extension probing.
-  const namesFile = aliases ? aliasNamesFile(aliasSpecifier, aliases, to) : false;
-  return namesFile ? [aliasSpecifier + ext, aliasSpecifier] : [aliasSpecifier + ext];
+  // Without the extension, the alias is valid where the consumer already uses it or its mapping names the file;
+  // elsewhere it relies on extension probing.
+  const bare = aliasSpecifier === originalSpecifier || (aliases ? aliasNamesFile(aliasSpecifier, aliases, to) : false);
+  return bare ? [aliasSpecifier + ext, aliasSpecifier] : [aliasSpecifier + ext];
 }
 
 export function buildRewriteSpecifier(

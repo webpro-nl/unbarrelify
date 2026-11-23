@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join, relative } from "node:path";
-import { initProjectConfig, tryMapToAlias } from "../../src/config.ts";
+import { aliasNamesFile, initProjectConfig, tryMapToAlias } from "../../src/config.ts";
 import type { PathAliases } from "../../src/types.ts";
 
 const fixturesDir = join(process.cwd(), "fixtures");
@@ -98,6 +98,15 @@ test("tryMapToAlias: matches alias keys literally", () => {
   };
   assert.equal(tryMapToAlias("/project/src/leaf.ts", aliases, "@lib/barrel.js"), "@lib/leaf");
   assert.equal(tryMapToAlias("/project/other/leaf.ts", aliases, "@axb/barrel"), null);
+});
+
+test("aliasNamesFile: only a mapping that substitutes to the file itself names it", () => {
+  const aliases = (paths: Record<string, string[]>): PathAliases => ({ baseUrl: "/project", paths });
+  const file = "/project/src/leaf.ts";
+  assert.equal(aliasNamesFile("@lib/leaf", aliases({ "@lib/leaf": ["./src/leaf.ts"] }), file), true);
+  assert.equal(aliasNamesFile("@lib/leaf", aliases({ "@lib/leaf": ["./src/leaf"] }), file), false);
+  assert.equal(aliasNamesFile("@lib/leaf", aliases({ "@lib/*": ["./src/*.ts"] }), file), true);
+  assert.equal(aliasNamesFile("@lib/leaf", aliases({ "@lib/*": ["./src/*"] }), file), false);
 });
 
 test("tryMapToAlias: returns null when path doesn't match alias target", () => {
