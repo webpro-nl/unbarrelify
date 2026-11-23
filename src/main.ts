@@ -179,10 +179,10 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
     }
     trackBarrelConsumers(analysis, filePath, ctx);
 
-    try {
-      const rewrites = await buildRewrites(analysis, filePath, ctx);
-      if (rewrites.size === 0) continue;
+    const rewrites = await buildRewrites(analysis, filePath, ctx);
+    if (rewrites.size === 0) continue;
 
+    try {
       const rewriteContext = { ...baseRewriteContext, singleQuote: detectSingleQuote(analysis.sourceFile) };
       const content = applyRewrites(analysis.sourceFile, rewrites, filePath, rewriteContext);
 

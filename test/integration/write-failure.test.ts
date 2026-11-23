@@ -88,6 +88,28 @@ for (const name of ["unreadable.ts", "unreadable.vue"]) {
   });
 }
 
+test("stops without deleting barrels when reading a re-export target fails", async (t) => {
+  const fixtureDir = await copyFixture(t, "nested-reexport-read");
+  const unreadable = join(fixtureDir, "shared/x.ts");
+  const originalRead = fs.readFile;
+  const readError = Object.assign(new Error("simulated read failure"), { code: "EACCES" });
+  t.mock.method(console, "error", () => {});
+  const reader = t.mock.method(fs, "readFile", async (...args: Parameters<typeof fs.readFile>) => {
+    if (args[0] === unreadable) throw readError;
+    return originalRead(...args);
+  });
+  syncBuiltinESMExports();
+
+  try {
+    const options = { cwd: join(fixtureDir, "app"), files: ["**/*.ts"], only: ["a.ts", "b.ts"], write: true };
+    await assert.rejects(unbarrelify(options), readError);
+    assert.ok(existsSync(join(fixtureDir, "app/b.ts")), "the unreadable re-export still imports this barrel");
+  } finally {
+    reader.mock.restore();
+    syncBuiltinESMExports();
+  }
+});
+
 test("does not report a barrel as deleted when deleting it fails", async (t) => {
   const fixtureDir = await copyFixture(t, "chained-barrels");
   const failing = join(fixtureDir, "sub/index.ts");
