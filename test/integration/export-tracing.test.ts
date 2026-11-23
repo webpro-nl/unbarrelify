@@ -106,6 +106,11 @@ const cases: Record<string, Expected> = {
     rewritten: ['import * as mine from "./tools.mjs";'],
     deleted: ["index.mjs"],
   },
+  "type-default-alias": {
+    consumer: "consumer.ts",
+    rewritten: ['import type { default as Token } from "./types.ts";'],
+    deleted: ["barrel.ts"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {

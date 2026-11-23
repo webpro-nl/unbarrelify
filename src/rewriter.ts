@@ -35,15 +35,18 @@ export interface RewriteContext {
 export function buildRewriteItem(name: Name, importItem: ImportData, exportItem: ExportData): Rewrite {
   const isDefault = name.name === "default";
   const isReExport = importItem.type === "export";
+  // A default import cannot carry a `type` modifier next to other names, so a type-only default is imported
+  // as `default as`.
+  const isNamedDefault = isDefault && (isReExport || Boolean(name.isType));
+  const localName = name.alias ?? importItem.name;
   return {
     type: isReExport ? "export" : "import",
     ns: isDefault ? undefined : importItem.name,
-    named:
-      isDefault && isReExport ? [{ name: "default", alias: name.alias ?? importItem.name }] : isDefault ? [] : [name],
+    named: isNamedDefault ? [{ ...name, alias: localName }] : isDefault ? [] : [name],
     members: importItem.type === "ns" && !isDefault ? [{ name: name.name }] : [],
     externalSpecifier: exportItem.externalSpecifier,
     reExportedNs: exportItem.reExportedNs === name.name ? (name.alias ?? name.name) : undefined,
-    defaultName: isDefault && !isReExport ? (name.alias ?? importItem.name) : undefined,
+    defaultName: isDefault && !isNamedDefault ? localName : undefined,
     originalSpecifier: importItem.originalSpecifier,
     packageTargetSpecifier: importItem.originalSpecifier?.startsWith("#") ? exportItem.specifier : undefined,
     packageImportSpecifier: exportItem.specifier.startsWith("#") ? exportItem.specifier : undefined,
