@@ -248,7 +248,7 @@ async function traceExport(
 export async function buildRewrites(analysis: File, filePath: string, ctx: Context): Promise<Rewrites> {
   const rewrites: Rewrites = new Map();
   const added = new Set<string>();
-  const untraceable = new Set<string>();
+  const unchanged = new Set<string>();
   if (analysis.isBarrel && !ctx.preservedBarrels.has(filePath) && !ctx.isPackageEntryPoint(filePath)) return rewrites;
 
   for (const [importedFilePath, importSet] of analysis.imports) {
@@ -269,10 +269,18 @@ export async function buildRewrites(analysis: File, filePath: string, ctx: Conte
     for (const item of importSet) {
       if (!item) continue;
 
+      if (
+        item.type === "ns" &&
+        [...importSet].some((other) => other.type === "default" && other.pos.start === item.pos.start)
+      ) {
+        unchanged.add(`${item.pos.start}:${item.pos.end}`);
+        continue;
+      }
+
       for (const name of item.names ?? []) {
         const found = await traceName(name, item, importedFile.exports, rewrites, ctx, added);
         if (!found) {
-          untraceable.add(`${item.pos.start}:${item.pos.end}`);
+          unchanged.add(`${item.pos.start}:${item.pos.end}`);
           ctx.tracker.untraceableImports.push({
             barrelPath: importedFilePath,
             consumerPath: filePath,
@@ -288,7 +296,7 @@ export async function buildRewrites(analysis: File, filePath: string, ctx: Conte
       if (item.type === "default") {
         const found = await traceName({ name: "default" }, item, importedFile.exports, rewrites, ctx, added);
         if (!found) {
-          untraceable.add(`${item.pos.start}:${item.pos.end}`);
+          unchanged.add(`${item.pos.start}:${item.pos.end}`);
           ctx.tracker.untraceableImports.push({
             barrelPath: importedFilePath,
             consumerPath: filePath,
@@ -331,7 +339,7 @@ export async function buildRewrites(analysis: File, filePath: string, ctx: Conte
     }
   }
 
-  for (const pos of untraceable) rewrites.delete(pos);
+  for (const pos of unchanged) rewrites.delete(pos);
 
   return rewrites;
 }

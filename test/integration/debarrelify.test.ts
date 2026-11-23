@@ -1536,6 +1536,31 @@ describe("unbarrelify integration tests", () => {
     }
   });
 
+  describe("default-namespace-import fixture", () => {
+    for (const only of [[], ["multi.ts", "single.ts"]]) {
+      test(`keeps declarations that combine default and namespace imports (only: ${JSON.stringify(only)})`, async (t) => {
+        const fixtureDir = await copyFixture(t, "default-namespace-import");
+
+        const result = await unbarrelify({ cwd: fixtureDir, files: ["**/*.ts"], only, write: true });
+
+        assert.deepEqual(result.deleted, []);
+        for (const name of ["multi", "single"]) {
+          assert.equal(
+            await read(join(fixtureDir, `${name}-entry.ts`)),
+            `import base, * as values from "./${name}.ts";\n\nexport const sum = base + values.n;\n`,
+          );
+        }
+        assert.deepEqual(
+          result.preserved.map(({ path, reason }) => [path.slice(fixtureDir.length + 1), reason]).sort(),
+          [
+            ["multi.ts", "namespace-import"],
+            ["single.ts", "namespace-import"],
+          ],
+        );
+      });
+    }
+  });
+
   describe("namespace-barrel-chain fixture", () => {
     for (const only of [[], ["outer.ts", "middle.ts", "inner.ts"]]) {
       test(`keeps a namespace import whose target would still be a barrel (only: ${JSON.stringify(only)})`, async (t) => {
