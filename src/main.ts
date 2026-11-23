@@ -115,7 +115,7 @@ async function registerExplicitBarrels(paths: string[], ctx: Context): Promise<v
   }
 
   for (const [barrelPath, analysis] of selectedFiles) {
-    trackExplicitBarrelConsumers(analysis, barrelPath, ctx);
+    trackBarrelConsumers(analysis, barrelPath, ctx);
     for (const [importedFilePath, importSet] of analysis.imports) {
       for (const item of importSet) {
         if (item.type === "export" && item.name === "*") ctx.tracker.addStarConsumer(importedFilePath, barrelPath);
@@ -176,14 +176,11 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
 
       if (ctx.only.length === 0) {
         await discoverBarrels(analysis, filePath, ctx);
-      } else {
-        trackExplicitBarrelConsumers(analysis, filePath, ctx);
       }
+      trackBarrelConsumers(analysis, filePath, ctx);
 
       const rewrites = await buildRewrites(analysis, filePath, ctx);
       if (rewrites.size === 0) continue;
-
-      markRewrittenBarrels(analysis, filePath, rewrites, ctx);
 
       const rewriteContext = { ...baseRewriteContext, singleQuote: detectSingleQuote(analysis.sourceFile) };
       const content = applyRewrites(analysis.sourceFile, rewrites, filePath, rewriteContext);
@@ -195,6 +192,7 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
       if (ctx.write && !ctx.check) {
         await write(filePath, content);
       }
+      markRewrittenBarrels(analysis, filePath, rewrites, ctx);
       modified.push(filePath);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -265,7 +263,6 @@ async function discoverBarrels(analysis: File, consumerPath: string, ctx: Contex
     const imported = await analyzeFile(dynamicImport, ctx);
     if (isBarrel(dynamicImport, imported, ctx)) {
       ctx.tracker.register(dynamicImport);
-      ctx.tracker.addDynamicConsumer(dynamicImport, consumerPath);
       ctx.progress({ type: "barrel", path: dynamicImport });
     }
   }
@@ -279,7 +276,6 @@ async function discoverBarrels(analysis: File, consumerPath: string, ctx: Contex
       if (ctx.tracker.register(importedFilePath)) {
         ctx.progress({ type: "barrel", path: importedFilePath });
       }
-      ctx.tracker.addConsumer(importedFilePath, consumerPath);
       if (analysis.isBarrel) {
         ctx.tracker.register(consumerPath);
       }
@@ -287,7 +283,7 @@ async function discoverBarrels(analysis: File, consumerPath: string, ctx: Contex
   }
 }
 
-function trackExplicitBarrelConsumers(analysis: File, consumerPath: string, ctx: Context): void {
+function trackBarrelConsumers(analysis: File, consumerPath: string, ctx: Context): void {
   for (const dynamicImport of analysis.dynamicImports) {
     ctx.tracker.addDynamicConsumer(dynamicImport, consumerPath);
   }
@@ -305,13 +301,8 @@ function markRewrittenBarrels(analysis: File, consumerPath: string, rewrites: Re
 
     const cached = ctx.fileCache.get(importedFilePath);
     if (cached && isBarrel(importedFilePath, cached, ctx) && ctx.tracker.has(importedFilePath)) {
-      for (const item of importSet) {
-        const posKey = `${item.pos.start}:${item.pos.end}`;
-        if (rewrittenPositions.has(posKey)) {
-          ctx.tracker.markRewritten(importedFilePath, consumerPath);
-          break;
-        }
-      }
+      const allRewritten = [...importSet].every((item) => rewrittenPositions.has(`${item.pos.start}:${item.pos.end}`));
+      if (allRewritten) ctx.tracker.markRewritten(importedFilePath, consumerPath);
     }
   }
 }

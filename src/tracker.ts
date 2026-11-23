@@ -113,11 +113,24 @@ export class BarrelTracker {
     const nonTsConsumers: string[] = [];
     const nsConsumers: string[] = [];
     const starConsumers: string[] = [];
+    const untracedConsumers: string[] = [];
+    const barrelConsumers: string[] = [];
+    const untraced = new Set(
+      this.untraceableImports.filter((entry) => entry.barrelPath === barrelPath).map((entry) => entry.consumerPath),
+    );
 
     for (const consumer of state.consumers) {
       if (state.rewrittenConsumers.has(consumer) || toDelete.has(consumer)) continue;
       if (state.starConsumers.has(consumer)) {
         starConsumers.push(consumer);
+        continue;
+      }
+      if (untraced.has(consumer)) {
+        untracedConsumers.push(consumer);
+        continue;
+      }
+      if (this.barrels.has(consumer)) {
+        barrelConsumers.push(consumer);
         continue;
       }
       if (JS_EXT_PATTERN.test(consumer)) nsConsumers.push(consumer);
@@ -128,6 +141,8 @@ export class BarrelTracker {
     if (nonTsConsumers.length > 0) results.push({ reason: "non-ts-import", consumers: nonTsConsumers });
     if (nsConsumers.length > 0) results.push({ reason: "namespace-import", consumers: nsConsumers });
     if (starConsumers.length > 0) results.push({ reason: "star-reexport", consumers: starConsumers });
+    if (untracedConsumers.length > 0) results.push({ reason: "untraceable-import", consumers: untracedConsumers });
+    if (barrelConsumers.length > 0) results.push({ reason: "barrel-reexport", consumers: barrelConsumers });
     return results;
   }
 }
