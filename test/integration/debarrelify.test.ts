@@ -1536,6 +1536,30 @@ describe("unbarrelify integration tests", () => {
     }
   });
 
+  describe("namespace-barrel-chain fixture", () => {
+    for (const only of [[], ["outer.ts", "middle.ts", "inner.ts"]]) {
+      test(`keeps a namespace import whose target would still be a barrel (only: ${JSON.stringify(only)})`, async (t) => {
+        const fixtureDir = await copyFixture(t, "namespace-barrel-chain");
+
+        const result = await unbarrelify({ cwd: fixtureDir, files: ["**/*.ts"], only, write: true });
+
+        assert.deepEqual(result.deleted, []);
+        assert.equal(
+          await read(join(fixtureDir, "entry.ts")),
+          'import * as values from "./outer.ts";\n\nexport const n = values.n;\n',
+        );
+        assert.deepEqual(
+          result.preserved.map(({ path, reason }) => [path.slice(fixtureDir.length + 1), reason]).sort(),
+          [
+            ["inner.ts", "barrel-reexport"],
+            ["middle.ts", "barrel-reexport"],
+            ["outer.ts", "namespace-import"],
+          ],
+        );
+      });
+    }
+  });
+
   describe("chained-barrels fixture with only the inner barrel selected", () => {
     test("reports the unselected outer barrel as a barrel re-export", async (t) => {
       const fixtureDir = await copyFixture(t, "chained-barrels");

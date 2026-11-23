@@ -308,7 +308,8 @@ export async function buildRewrites(analysis: File, filePath: string, ctx: Conte
             const deepLocalExports = [...targetFile.exports.entries()].filter(([p]) => isAbsolute(p));
             if (deepLocalExports.length === 1) finalPath = deepLocalExports[0][0];
           }
-          if (finalPath && (exportData.exportedNames.size > 0 || exportData.externalSpecifier)) {
+          const finalIsBarrel = isBarrel(finalPath, await analyzeFile(finalPath, ctx), ctx);
+          if (!finalIsBarrel && (exportData.exportedNames.size > 0 || exportData.externalSpecifier)) {
             addRewrite(
               { name: item.name },
               item,
