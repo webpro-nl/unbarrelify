@@ -1,5 +1,5 @@
 import type { Context, PreservedBarrel, UntraceableImport } from "./types.ts";
-import { isIgnoredPath } from "./constants.ts";
+import { isIgnoredPath, JS_EXT_PATTERN } from "./constants.ts";
 
 interface BarrelState {
   consumers: Set<string>;
@@ -133,8 +133,7 @@ export class BarrelTracker {
         barrelConsumers.push(consumer);
         continue;
       }
-      const isTs = consumer.endsWith(".ts") || consumer.endsWith(".tsx");
-      if (isTs) nsConsumers.push(consumer);
+      if (JS_EXT_PATTERN.test(consumer)) nsConsumers.push(consumer);
       else nonTsConsumers.push(consumer);
     }
 
