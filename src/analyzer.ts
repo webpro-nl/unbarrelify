@@ -100,11 +100,19 @@ export async function getExportedNames(
   return extractExportedNames(sourceFile);
 }
 
+function addBindingNames(name: ts.BindingName, names: Set<string>): void {
+  if (ts.isIdentifier(name)) {
+    names.add(name.text);
+    return;
+  }
+  for (const element of name.elements) {
+    if (ts.isBindingElement(element)) addBindingNames(element.name, names);
+  }
+}
+
 function extractExportedName(node: ts.Node, names: Set<string>): void {
   if (ts.isVariableStatement(node)) {
-    for (const decl of node.declarationList.declarations) {
-      if (ts.isIdentifier(decl.name)) names.add(decl.name.text);
-    }
+    for (const decl of node.declarationList.declarations) addBindingNames(decl.name, names);
   } else if (
     (ts.isFunctionDeclaration(node) ||
       ts.isClassDeclaration(node) ||
