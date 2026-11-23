@@ -1361,6 +1361,8 @@ describe("unbarrelify integration tests", () => {
 
       const preservedInner = result.preserved.find((p) => p.path.includes("inner/index.ts"));
       assert.ok(preservedInner);
+      assert.equal(preservedInner.reason, "barrel-reexport");
+      assert.deepEqual(preservedInner.consumers, [join(fixtureDir, "src/outer/index.ts")]);
     });
 
     test("rewrites regular TS consumer but keeps both barrels", async (t) => {
@@ -1424,6 +1426,68 @@ describe("unbarrelify integration tests", () => {
 
       const consumerContent = await read(join(fixtureDir, "consumer.ts"));
       assert.ok(consumerContent.includes('./utils?raw"'));
+    });
+  });
+
+  describe("untraceable-export fixture", () => {
+    test("keeps the barrel and declarations with untraceable names", async (t) => {
+      const fixtureDir = await copyFixture(t, "untraceable-export");
+
+      const result = await unbarrelify({
+        cwd: fixtureDir,
+        files: ["**/*.ts"],
+        skip: [],
+        write: true,
+      });
+
+      assert.deepEqual(result.untraceableImports.map(({ consumerPath, name }) => `${consumerPath}:${name}`).sort(), [
+        `${join(fixtureDir, "mixed.ts")}:Kind`,
+        `${join(fixtureDir, "split.ts")}:Kind`,
+      ]);
+      assert.deepEqual(result.deleted, []);
+      assert.deepEqual(
+        result.preserved.map(({ path, reason, consumers }) => ({ path, reason, consumers: consumers.toSorted() })),
+        [
+          {
+            path: join(fixtureDir, "index.ts"),
+            reason: "untraceable-import",
+            consumers: [join(fixtureDir, "mixed.ts"), join(fixtureDir, "split.ts")],
+          },
+        ],
+      );
+      assert.ok(existsSync(join(fixtureDir, "index.ts")));
+      assert.equal(
+        await read(join(fixtureDir, "mixed.ts")),
+        'import { a, value, type Kind } from "./index.js";\n\nconst kind: Kind = "a";\n\nexport { a, value, kind };\n',
+      );
+      assert.equal(
+        await read(join(fixtureDir, "split.ts")),
+        'import { a } from "./a.js";\nimport type { Kind } from "./index.js";\n\nconst kind: Kind = "b";\n\nexport { a, kind };\n',
+      );
+    });
+  });
+
+  describe("sibling directory with the same prefix as cwd", () => {
+    test("does not delete a barrel from a sibling directory whose consumers were not scanned", async (t) => {
+      const root = await copyFixture(t, "sibling-prefix");
+      const siblingConsumer = join(root, "app-shared/other-consumer.ts");
+      const originalConsumer = await read(siblingConsumer);
+
+      const result = await unbarrelify({
+        cwd: join(root, "app"),
+        files: ["**/*.ts"],
+        skip: [],
+        write: true,
+      });
+
+      const siblingBarrel = join(root, "app-shared/internal/index.ts");
+      assert.ok(!result.deleted.includes(siblingBarrel));
+      assert.ok(existsSync(siblingBarrel));
+      assert.equal(await read(siblingConsumer), originalConsumer);
+
+      const insideBarrel = join(root, "app/inner/index.ts");
+      assert.ok(result.deleted.includes(insideBarrel));
+      assert.ok(!existsSync(insideBarrel));
     });
   });
 });

@@ -401,7 +401,7 @@ function findDynamicImports(sourceFile: ts.SourceFile, aliases: PathAliases | nu
     if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
       const arg = node.arguments[0];
       if (arg && ts.isStringLiteral(arg)) {
-        const resolvedPath = resolveModule(sourceFile.fileName, arg.text, aliases, true);
+        const resolvedPath = resolveModule(sourceFile.fileName, arg.text, aliases);
         if (resolvedPath && isAbsolute(resolvedPath)) {
           dynamicImports.add(resolvedPath);
         }

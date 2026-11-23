@@ -1,5 +1,5 @@
 import type { Context, PreservedBarrel, UntraceableImport } from "./types.ts";
-import { isIgnoredPath } from "./constants.ts";
+import { isIgnoredPath, JS_EXT_PATTERN } from "./constants.ts";
 
 interface BarrelState {
   consumers: Set<string>;
@@ -57,7 +57,7 @@ export class BarrelTracker {
       changed = false;
       for (const [barrelPath, state] of this.barrels) {
         if (toDelete.has(barrelPath)) continue;
-        if (!barrelPath.startsWith(ctx.base)) continue;
+        if (!barrelPath.startsWith(ctx.base + "/")) continue;
         if (isIgnoredPath(barrelPath, ctx.base)) continue;
         if (state.dynamicConsumers.size > 0) continue;
         if (ctx.preservedBarrels.has(barrelPath) || ctx.isPackageEntryPoint(barrelPath)) continue;
@@ -71,7 +71,7 @@ export class BarrelTracker {
     }
 
     for (const [barrelPath, state] of this.barrels) {
-      if (!barrelPath.startsWith(ctx.base)) continue;
+      if (!barrelPath.startsWith(ctx.base + "/")) continue;
       if (isIgnoredPath(barrelPath, ctx.base)) continue;
 
       if (toDelete.has(barrelPath)) {
@@ -113,6 +113,11 @@ export class BarrelTracker {
     const nonTsConsumers: string[] = [];
     const nsConsumers: string[] = [];
     const starConsumers: string[] = [];
+    const untracedConsumers: string[] = [];
+    const barrelConsumers: string[] = [];
+    const untraced = new Set(
+      this.untraceableImports.filter((entry) => entry.barrelPath === barrelPath).map((entry) => entry.consumerPath),
+    );
 
     for (const consumer of state.consumers) {
       if (state.rewrittenConsumers.has(consumer) || toDelete.has(consumer)) continue;
@@ -120,8 +125,15 @@ export class BarrelTracker {
         starConsumers.push(consumer);
         continue;
       }
-      const isTs = consumer.endsWith(".ts") || consumer.endsWith(".tsx");
-      if (isTs) nsConsumers.push(consumer);
+      if (untraced.has(consumer)) {
+        untracedConsumers.push(consumer);
+        continue;
+      }
+      if (this.barrels.has(consumer)) {
+        barrelConsumers.push(consumer);
+        continue;
+      }
+      if (JS_EXT_PATTERN.test(consumer)) nsConsumers.push(consumer);
       else nonTsConsumers.push(consumer);
     }
 
@@ -129,6 +141,8 @@ export class BarrelTracker {
     if (nonTsConsumers.length > 0) results.push({ reason: "non-ts-import", consumers: nonTsConsumers });
     if (nsConsumers.length > 0) results.push({ reason: "namespace-import", consumers: nsConsumers });
     if (starConsumers.length > 0) results.push({ reason: "star-reexport", consumers: starConsumers });
+    if (untracedConsumers.length > 0) results.push({ reason: "untraceable-import", consumers: untracedConsumers });
+    if (barrelConsumers.length > 0) results.push({ reason: "barrel-reexport", consumers: barrelConsumers });
     return results;
   }
 }

@@ -111,7 +111,7 @@ export function tryMapToAlias(absolutePath: string, aliases: PathAliases, origin
     const patternRegex = new RegExp(`^${pattern.replace(/\*/g, "(.*)")}$`);
     const match = originalSpecifier.match(patternRegex);
 
-    if (match && targets.length > 0) {
+    if ((match || pattern === `${originalSpecifier}/*`) && targets.length > 0) {
       const targetPattern = targets[0];
       const targetBase = targetPattern.replace(/\*.*$/, "");
       const resolvedTargetBase = join(aliases.baseUrl, targetBase);
@@ -119,6 +119,8 @@ export function tryMapToAlias(absolutePath: string, aliases: PathAliases, origin
       if (absolutePath.startsWith(resolvedTargetBase)) {
         const relativePart = absolutePath.slice(resolvedTargetBase.length);
         const withoutExt = relativePart.replace(JS_EXT_PATTERN, "");
+        // An exact alias can name this file, but cannot accept a suffix.
+        if (!pattern.includes("*") && withoutExt) continue;
         const aliasBase = pattern.replace(/\*.*$/, "");
         return aliasBase + withoutExt;
       }

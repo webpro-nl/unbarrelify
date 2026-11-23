@@ -59,6 +59,8 @@ export interface Rewrite {
   defaultName?: string;
   isTypeOnly?: boolean;
   originalSpecifier?: string;
+  packageImportSpecifier?: string;
+  packageTargetSpecifier?: string;
   specifierPrefix?: string;
   specifierSuffix?: string;
   unsafeNsName?: string; // For --unsafe-namespace: the namespace identifier name
@@ -115,7 +117,14 @@ export interface Context {
 
 export interface PreservedBarrel {
   path: string;
-  reason: "skip" | "namespace-import" | "non-ts-import" | "dynamic-import" | "star-reexport";
+  reason:
+    | "skip"
+    | "namespace-import"
+    | "non-ts-import"
+    | "dynamic-import"
+    | "star-reexport"
+    | "untraceable-import"
+    | "barrel-reexport";
   consumers: string[];
 }
 
