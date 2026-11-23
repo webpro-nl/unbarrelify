@@ -115,7 +115,14 @@ export interface Context {
 
 export interface PreservedBarrel {
   path: string;
-  reason: "skip" | "namespace-import" | "non-ts-import" | "dynamic-import" | "star-reexport";
+  reason:
+    | "skip"
+    | "namespace-import"
+    | "non-ts-import"
+    | "dynamic-import"
+    | "star-reexport"
+    | "untraceable-import"
+    | "barrel-reexport";
   consumers: string[];
 }
 

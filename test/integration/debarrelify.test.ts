@@ -1361,6 +1361,8 @@ describe("unbarrelify integration tests", () => {
 
       const preservedInner = result.preserved.find((p) => p.path.includes("inner/index.ts"));
       assert.ok(preservedInner);
+      assert.equal(preservedInner.reason, "barrel-reexport");
+      assert.deepEqual(preservedInner.consumers, [join(fixtureDir, "src/outer/index.ts")]);
     });
 
     test("rewrites regular TS consumer but keeps both barrels", async (t) => {
@@ -1443,6 +1445,16 @@ describe("unbarrelify integration tests", () => {
         `${join(fixtureDir, "split.ts")}:Kind`,
       ]);
       assert.deepEqual(result.deleted, []);
+      assert.deepEqual(
+        result.preserved.map(({ path, reason, consumers }) => ({ path, reason, consumers: consumers.toSorted() })),
+        [
+          {
+            path: join(fixtureDir, "index.ts"),
+            reason: "untraceable-import",
+            consumers: [join(fixtureDir, "mixed.ts"), join(fixtureDir, "split.ts")],
+          },
+        ],
+      );
       assert.ok(existsSync(join(fixtureDir, "index.ts")));
       assert.equal(
         await read(join(fixtureDir, "mixed.ts")),
