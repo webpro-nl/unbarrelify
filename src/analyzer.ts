@@ -178,7 +178,7 @@ async function processLocalExport(
       exportedNames,
       exportStar: !node.exportClause,
       exportStarIsTypeOnly: !node.exportClause ? node.isTypeOnly : undefined,
-      reExportedNs: namespace,
+      reExportedNs: namespace ? new Set([namespace]) : undefined,
       externalSpecifier: specifier.startsWith(".") || specifier.startsWith("#") ? undefined : specifier,
     });
   }
@@ -198,7 +198,7 @@ function processExternalExport(
     ...(clause && ts.isNamedExports(clause) ? readNamedExports(clause) : undefined),
     exportStar: !clause,
     exportStarIsTypeOnly: !clause ? node.isTypeOnly : undefined,
-    reExportedNs: clause && ts.isNamespaceExport(clause) ? clause.name.text : undefined,
+    reExportedNs: clause && ts.isNamespaceExport(clause) ? new Set([clause.name.text]) : undefined,
     externalSpecifier: specifier,
   });
 }
@@ -259,8 +259,8 @@ function mergeExport(exports: ExportMap, path: string, data: ExportMap extends M
     existing.exportedAsDefault = data.exportedAsDefault;
   }
 
-  if (data.reExportedNs && !existing.reExportedNs) {
-    existing.reExportedNs = data.reExportedNs;
+  if (data.reExportedNs) {
+    existing.reExportedNs = new Set([...(existing.reExportedNs ?? []), ...data.reExportedNs]);
   }
 }
 

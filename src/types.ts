@@ -21,7 +21,7 @@ export interface ExportData {
   exportStar?: boolean;
   exportStarIsTypeOnly?: boolean;
   namedExports?: Set<string>;
-  reExportedNs?: string;
+  reExportedNs?: Set<string>;
   externalSpecifier?: string;
   aliases?: Map<string, string>;
   exportedAsDefault?: string;

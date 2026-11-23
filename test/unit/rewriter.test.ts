@@ -113,10 +113,10 @@ describe("rewriter", () => {
         specifier: "./utils",
         pos: { start: 0, end: 25 },
         exportedNames: new Set(["foo"]),
-        reExportedNs: "utils",
+        reExportedNs: new Set(["utils"]),
       };
 
-      const result = buildRewriteItem(name, importItem, exportItem);
+      const result = buildRewriteItem(name, importItem, exportItem, true);
 
       assert.equal(result.reExportedNs, "utils");
     });

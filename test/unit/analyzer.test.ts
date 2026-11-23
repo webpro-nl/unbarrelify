@@ -232,7 +232,7 @@ test("buildExportMap: captures namespace re-export", async () => {
 
   assert.equal(exportMap.size, 1);
   const exportData = exportMap.get(sourcePath)!;
-  assert.equal(exportData.reExportedNs, "utils");
+  assert.deepEqual(exportData.reExportedNs, new Set(["utils"]));
 });
 
 test("buildExportMap: returns empty map for non-export file", async () => {

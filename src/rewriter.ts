@@ -32,7 +32,12 @@ export interface RewriteContext {
   singleQuote?: boolean;
 }
 
-export function buildRewriteItem(name: Name, importItem: ImportData, exportItem: ExportData): Rewrite {
+export function buildRewriteItem(
+  name: Name,
+  importItem: ImportData,
+  exportItem: ExportData,
+  isNamespace = false,
+): Rewrite {
   const isDefault = name.name === "default";
   const isReExport = importItem.type === "export";
   // A default import cannot carry a `type` modifier next to other names, so a type-only default is imported
@@ -45,7 +50,7 @@ export function buildRewriteItem(name: Name, importItem: ImportData, exportItem:
     named: isNamedDefault ? [{ ...name, alias: localName }] : isDefault ? [] : [name],
     members: importItem.type === "ns" && !isDefault ? [{ name: name.name }] : [],
     externalSpecifier: exportItem.externalSpecifier,
-    reExportedNs: exportItem.reExportedNs === name.name ? (name.alias ?? name.name) : undefined,
+    reExportedNs: isNamespace ? (name.alias ?? name.name) : undefined,
     defaultName: isDefault && !isNamedDefault ? localName : undefined,
     originalSpecifier: importItem.originalSpecifier,
     packageTargetSpecifier: importItem.originalSpecifier?.startsWith("#") ? exportItem.specifier : undefined,
@@ -111,7 +116,7 @@ export function applyRewrites(
 }
 
 function isNameExported(name: Name, exportItem: ExportData): boolean {
-  if (exportItem.reExportedNs === name.name) return true;
+  if (exportItem.reExportedNs?.has(name.name)) return true;
   if (exportItem.exportedNames.size === 0) {
     return !!exportItem.externalSpecifier;
   }
@@ -127,6 +132,7 @@ function addRewrite(
   targetFilePath: string,
   rewrites: Rewrites,
   added: Set<string>,
+  isNamespace = false,
 ): boolean {
   const pos = `${importItem.pos.start}:${importItem.pos.end}`;
   const nameKey = `${pos}:${name.name}:${name.alias ?? ""}`;
@@ -138,7 +144,7 @@ function addRewrite(
     rewrites.set(pos, posRewrites);
   }
 
-  const item = buildRewriteItem(name, importItem, exportItem);
+  const item = buildRewriteItem(name, importItem, exportItem, isNamespace);
   const existing = posRewrites.get(targetFilePath);
   // A rewrite is either a namespace import or named imports, so one declaration cannot take both from a target.
   if (existing && existing.reExportedNs !== item.reExportedNs) return false;
@@ -192,12 +198,14 @@ async function traceExport(
   // A named or namespace re-export is the only route to its name, whatever the order: no other export is tried
   // after it, and only the package stars behind it count.
   const isNamed = (exportItem: ExportData) =>
-    exportItem.reExportedNs === name.name || (exportItem.namedExports?.has(name.name) ?? false);
+    Boolean(exportItem.reExportedNs?.has(name.name) || exportItem.namedExports?.has(name.name));
   const byNamedFirst = [...exports].sort(([, a], [, b]) => Number(isNamed(b)) - Number(isNamed(a)));
 
   for (const [targetFilePath, exportItem] of byNamedFirst) {
     const isExported = isNameExported(name, exportItem);
     if (!isExported && !exportItem.exportStar) continue;
+    // Decided on the name as requested: after alias translation it can spell a namespace of the same target.
+    const isNamespace = exportItem.reExportedNs?.has(name.name) ?? false;
 
     const alias = exportItem.aliases?.get(name.name);
     let effectiveName: Name;
@@ -219,8 +227,8 @@ async function traceExport(
     const external = isAbsolute(targetFilePath) ? exportItem.externalSpecifier : targetFilePath;
 
     if (external) {
-      if (exportItem.exportedNames.has(name.name) || exportItem.reExportedNs === name.name) {
-        if (addRewrite(effectiveName, importItem, exportItem, external, rewrites, added)) return true;
+      if (exportItem.exportedNames.has(name.name) || isNamespace) {
+        if (addRewrite(effectiveName, importItem, exportItem, external, rewrites, added, isNamespace)) return true;
       } else if (exportItem.exportStar && (!isAbsolute(targetFilePath) || exportItem.exportedNames.size === 0)) {
         packageStars.set(external, () => addRewrite(name, importItem, exportItem, external, rewrites, added));
       }
@@ -228,7 +236,10 @@ async function traceExport(
       const targetFile = await analyzeFile(targetFilePath, ctx);
 
       if (!targetFile.isBarrel) {
-        if (isExported && addRewrite(effectiveName, importItem, exportItem, targetFilePath, rewrites, added)) {
+        if (
+          isExported &&
+          addRewrite(effectiveName, importItem, exportItem, targetFilePath, rewrites, added, isNamespace)
+        ) {
           return true;
         }
       } else if (ctx.only.length === 0) {
@@ -334,14 +345,7 @@ export async function buildRewrites(analysis: File, filePath: string, ctx: Conte
           }
           const finalIsBarrel = isBarrel(finalPath, await analyzeFile(finalPath, ctx), ctx);
           if (!finalIsBarrel && (exportData.exportedNames.size > 0 || exportData.externalSpecifier)) {
-            addRewrite(
-              { name: item.name },
-              item,
-              { ...exportData, reExportedNs: item.name },
-              finalPath,
-              rewrites,
-              added,
-            );
+            addRewrite({ name: item.name }, item, exportData, finalPath, rewrites, added, true);
           }
         } else if (localExports.length > 1 && ctx.unsafeNamespace) {
           await buildUnsafeNamespaceRewrites(item, importedFile.exports, rewrites, ctx);

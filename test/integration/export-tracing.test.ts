@@ -116,6 +116,18 @@ const cases: Record<string, Expected> = {
     rewritten: ['import type { default as Token } from "./types.ts";'],
     deleted: ["barrel.ts"],
   },
+  "two-namespaces-one-package": {
+    rewritten: ['import * as paths from "node:path";', 'import * as pathTools from "node:path";'],
+    deleted: ["index.mjs"],
+  },
+  "namespace-named-like-alias-source": {
+    rewritten: ['import { sep as separator } from "node:path";'],
+    deleted: ["index.mjs"],
+  },
+  "local-namespace-named-like-alias-source": {
+    rewritten: ['import { v as value } from "./x.mjs";'],
+    deleted: ["index.mjs"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {
