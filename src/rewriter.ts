@@ -238,14 +238,15 @@ async function traceExport(
       // A package-private key without a local target cannot be copied to another file. Its exports still count,
       // so the names it provides or may provide are not taken from elsewhere.
       const isMovable = !external.startsWith("#");
+      const target = isAbsolute(targetFilePath) ? targetFilePath : external;
       if (exportItem.exportedNames.has(name.name) || isNamespace) {
-        if (isMovable && addRewrite(effectiveName, importItem, exportItem, external, rewrites, added, isNamespace)) {
+        if (isMovable && addRewrite(effectiveName, importItem, exportItem, target, rewrites, added, isNamespace)) {
           return true;
         }
       } else if (exportItem.exportStar && (!isAbsolute(targetFilePath) || exportItem.exportedNames.size === 0)) {
         packageStars.set(
           external,
-          () => isMovable && addRewrite(name, importItem, exportItem, external, rewrites, added),
+          () => isMovable && addRewrite(name, importItem, exportItem, target, rewrites, added),
         );
       }
     } else if (!isIgnoredPath(targetFilePath, ctx.base)) {

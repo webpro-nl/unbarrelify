@@ -1,4 +1,4 @@
-import { basename, dirname, extname, relative } from "node:path";
+import { basename, dirname, extname, isAbsolute, relative } from "node:path";
 import { realpathSync } from "node:fs";
 import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
@@ -149,14 +149,16 @@ export function buildRewriteSpecifier(
   rewrite: Rewrite,
   options: Pick<SpecifierOptions, "aliases" | "ext">,
 ): string {
-  const base =
-    rewrite.externalSpecifier ??
-    buildSpecifier(from, to, {
+  let base = rewrite.externalSpecifier;
+  // A bare specifier for a local file is kept only where it resolves to that file from the consumer.
+  if (!base || (isAbsolute(to) && resolveModule(from, base, options.aliases ?? null) !== to)) {
+    base = buildSpecifier(from, to, {
       ...options,
       originalSpecifier: rewrite.originalSpecifier,
       packageImportSpecifier: rewrite.packageImportSpecifier,
       packageTargetSpecifier: rewrite.packageTargetSpecifier,
     });
+  }
   return (rewrite.specifierPrefix ?? "") + base + (rewrite.specifierSuffix ?? "");
 }
 

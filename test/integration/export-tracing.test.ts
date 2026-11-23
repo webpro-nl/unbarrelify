@@ -159,6 +159,20 @@ const cases: Record<string, Expected> = {
     deleted: [],
     untraceable: ["sep"],
   },
+  "bare-star-other-package": {
+    consumer: "app/consumer.mjs",
+    rewritten: ['import { value } from "../producer/real.mjs";'],
+    deleted: ["producer/barrel.mjs"],
+  },
+  "bare-star-same-package": {
+    rewritten: ['import { value } from "shared-kit/leaf";'],
+    deleted: ["barrel.mjs"],
+  },
+  "bare-star-of-stars-other-package": {
+    consumer: "app/consumer.mjs",
+    rewritten: ['import { value } from "../producer/inner.mjs";'],
+    deleted: ["producer/barrel.mjs"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {
