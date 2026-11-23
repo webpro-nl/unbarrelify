@@ -174,6 +174,8 @@ export async function main(): Promise<void> {
     const nonTs = result.preserved.filter((p) => p.reason === "non-ts-import");
     const dynamic = result.preserved.filter((p) => p.reason === "dynamic-import");
     const starReExports = result.preserved.filter((p) => p.reason === "star-reexport");
+    const untraceableBarrels = result.preserved.filter((p) => p.reason === "untraceable-import");
+    const barrelReExports = result.preserved.filter((p) => p.reason === "barrel-reexport");
 
     if (skipped.length > 0) {
       console.error(
@@ -228,6 +230,30 @@ export async function main(): Promise<void> {
         `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (has curated star re-exports that cannot be flattened safely):`,
       );
       for (const { path, consumers } of starReExports) {
+        console.error(`  ${rel(path)}`);
+        for (const consumer of consumers ?? []) {
+          console.error(`    └─ ${rel(consumer)}`);
+        }
+      }
+    }
+
+    if (untraceableBarrels.length > 0) {
+      console.error(
+        `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (has untraceable imports, listed below):`,
+      );
+      for (const { path, consumers } of untraceableBarrels) {
+        console.error(`  ${rel(path)}`);
+        for (const consumer of consumers ?? []) {
+          console.error(`    └─ ${rel(consumer)}`);
+        }
+      }
+    }
+
+    if (barrelReExports.length > 0) {
+      console.error(
+        `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (re-exported by preserved barrel files):`,
+      );
+      for (const { path, consumers } of barrelReExports) {
         console.error(`  ${rel(path)}`);
         for (const consumer of consumers ?? []) {
           console.error(`    └─ ${rel(consumer)}`);

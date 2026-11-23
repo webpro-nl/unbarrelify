@@ -1,9 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { dirname, join } from "node:path";
-import { existsSync, realpathSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { unbarrelify } from "../../src/main.ts";
 import { copyFixture, read } from "./helpers.ts";
 
@@ -1363,6 +1361,8 @@ describe("unbarrelify integration tests", () => {
 
       const preservedInner = result.preserved.find((p) => p.path.includes("inner/index.ts"));
       assert.ok(preservedInner);
+      assert.equal(preservedInner.reason, "barrel-reexport");
+      assert.deepEqual(preservedInner.consumers, [join(fixtureDir, "src/outer/index.ts")]);
     });
 
     test("rewrites regular TS consumer but keeps both barrels", async (t) => {
@@ -1429,28 +1429,49 @@ describe("unbarrelify integration tests", () => {
     });
   });
 
+  describe("untraceable-export fixture", () => {
+    test("keeps the barrel and declarations with untraceable names", async (t) => {
+      const fixtureDir = await copyFixture(t, "untraceable-export");
+
+      const result = await unbarrelify({
+        cwd: fixtureDir,
+        files: ["**/*.ts"],
+        skip: [],
+        write: true,
+      });
+
+      assert.deepEqual(result.untraceableImports.map(({ consumerPath, name }) => `${consumerPath}:${name}`).sort(), [
+        `${join(fixtureDir, "mixed.ts")}:Kind`,
+        `${join(fixtureDir, "split.ts")}:Kind`,
+      ]);
+      assert.deepEqual(result.deleted, []);
+      assert.deepEqual(
+        result.preserved.map(({ path, reason, consumers }) => ({ path, reason, consumers: consumers.toSorted() })),
+        [
+          {
+            path: join(fixtureDir, "index.ts"),
+            reason: "untraceable-import",
+            consumers: [join(fixtureDir, "mixed.ts"), join(fixtureDir, "split.ts")],
+          },
+        ],
+      );
+      assert.ok(existsSync(join(fixtureDir, "index.ts")));
+      assert.equal(
+        await read(join(fixtureDir, "mixed.ts")),
+        'import { a, value, type Kind } from "./index.js";\n\nconst kind: Kind = "a";\n\nexport { a, value, kind };\n',
+      );
+      assert.equal(
+        await read(join(fixtureDir, "split.ts")),
+        'import { a } from "./a.js";\nimport type { Kind } from "./index.js";\n\nconst kind: Kind = "b";\n\nexport { a, kind };\n',
+      );
+    });
+  });
+
   describe("sibling directory with the same prefix as cwd", () => {
     test("does not delete a barrel from a sibling directory whose consumers were not scanned", async (t) => {
-      const root = realpathSync(await mkdtemp(join(tmpdir(), "sibling-prefix-")));
-      t.after(() => rm(root, { recursive: true, force: true }));
-
-      const files: Record<string, string> = {
-        "app/consumer.ts": [
-          'import { local } from "./inner/index.ts";',
-          'import { shared } from "../app-shared/internal/index.ts";',
-          "export const values = [local, shared];",
-          "",
-        ].join("\n"),
-        "app/inner/index.ts": 'export * from "./local.ts";\n',
-        "app/inner/local.ts": "export const local = 1;\n",
-        "app-shared/internal/index.ts": 'export * from "./shared.ts";\n',
-        "app-shared/internal/shared.ts": "export const shared = 2;\n",
-        "app-shared/other-consumer.ts": 'import { shared } from "./internal/index.ts";\nexport const value = shared;\n',
-      };
-      for (const [file, content] of Object.entries(files)) {
-        await mkdir(dirname(join(root, file)), { recursive: true });
-        await writeFile(join(root, file), content);
-      }
+      const root = await copyFixture(t, "sibling-prefix");
+      const siblingConsumer = join(root, "app-shared/other-consumer.ts");
+      const originalConsumer = await read(siblingConsumer);
 
       const result = await unbarrelify({
         cwd: join(root, "app"),
@@ -1462,7 +1483,7 @@ describe("unbarrelify integration tests", () => {
       const siblingBarrel = join(root, "app-shared/internal/index.ts");
       assert.ok(!result.deleted.includes(siblingBarrel));
       assert.ok(existsSync(siblingBarrel));
-      assert.equal(await read(join(root, "app-shared/other-consumer.ts")), files["app-shared/other-consumer.ts"]);
+      assert.equal(await read(siblingConsumer), originalConsumer);
 
       const insideBarrel = join(root, "app/inner/index.ts");
       assert.ok(result.deleted.includes(insideBarrel));

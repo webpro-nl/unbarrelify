@@ -1,17 +1,5 @@
-import path from "node:path";
 import type { Context, PreservedBarrel, UntraceableImport } from "./types.ts";
 import { isIgnoredPath } from "./constants.ts";
-
-export function isWithinDirectory(filePath: string, directory: string, pathApi: typeof path = path): boolean {
-  if (!filePath.startsWith(directory)) return false;
-  const relativePath = pathApi.relative(directory, filePath);
-  return (
-    relativePath !== "" &&
-    relativePath !== ".." &&
-    !relativePath.startsWith(`..${pathApi.sep}`) &&
-    !pathApi.isAbsolute(relativePath)
-  );
-}
 
 interface BarrelState {
   consumers: Set<string>;
@@ -69,7 +57,7 @@ export class BarrelTracker {
       changed = false;
       for (const [barrelPath, state] of this.barrels) {
         if (toDelete.has(barrelPath)) continue;
-        if (!isWithinDirectory(barrelPath, ctx.base)) continue;
+        if (!barrelPath.startsWith(ctx.base + "/")) continue;
         if (isIgnoredPath(barrelPath, ctx.base)) continue;
         if (state.dynamicConsumers.size > 0) continue;
         if (ctx.preservedBarrels.has(barrelPath) || ctx.isPackageEntryPoint(barrelPath)) continue;
@@ -83,7 +71,7 @@ export class BarrelTracker {
     }
 
     for (const [barrelPath, state] of this.barrels) {
-      if (!isWithinDirectory(barrelPath, ctx.base)) continue;
+      if (!barrelPath.startsWith(ctx.base + "/")) continue;
       if (isIgnoredPath(barrelPath, ctx.base)) continue;
 
       if (toDelete.has(barrelPath)) {
@@ -125,11 +113,24 @@ export class BarrelTracker {
     const nonTsConsumers: string[] = [];
     const nsConsumers: string[] = [];
     const starConsumers: string[] = [];
+    const untracedConsumers: string[] = [];
+    const barrelConsumers: string[] = [];
+    const untraced = new Set(
+      this.untraceableImports.filter((entry) => entry.barrelPath === barrelPath).map((entry) => entry.consumerPath),
+    );
 
     for (const consumer of state.consumers) {
       if (state.rewrittenConsumers.has(consumer) || toDelete.has(consumer)) continue;
       if (state.starConsumers.has(consumer)) {
         starConsumers.push(consumer);
+        continue;
+      }
+      if (untraced.has(consumer)) {
+        untracedConsumers.push(consumer);
+        continue;
+      }
+      if (this.barrels.has(consumer)) {
+        barrelConsumers.push(consumer);
         continue;
       }
       const isTs = consumer.endsWith(".ts") || consumer.endsWith(".tsx");
@@ -141,6 +142,8 @@ export class BarrelTracker {
     if (nonTsConsumers.length > 0) results.push({ reason: "non-ts-import", consumers: nonTsConsumers });
     if (nsConsumers.length > 0) results.push({ reason: "namespace-import", consumers: nsConsumers });
     if (starConsumers.length > 0) results.push({ reason: "star-reexport", consumers: starConsumers });
+    if (untracedConsumers.length > 0) results.push({ reason: "untraceable-import", consumers: untracedConsumers });
+    if (barrelConsumers.length > 0) results.push({ reason: "barrel-reexport", consumers: barrelConsumers });
     return results;
   }
 }
