@@ -159,6 +159,10 @@ function addRewrite(
 // nothing else exports the name and it is the only candidate.
 type PackageStars = Map<string, () => boolean>;
 
+function usePackageStar(packageStars: PackageStars): boolean {
+  return packageStars.size === 1 && [...packageStars.values()][0]();
+}
+
 async function traceName(
   name: Name,
   importItem: ImportData,
@@ -168,10 +172,11 @@ async function traceName(
   added: Set<string>,
 ): Promise<boolean> {
   const packageStars: PackageStars = new Map();
-  if (await traceExport(name, importItem, exports, rewrites, ctx, added, new Set(), packageStars)) return true;
-  return packageStars.size === 1 && [...packageStars.values()][0]();
+  const found = await traceExport(name, importItem, exports, rewrites, ctx, added, new Set(), packageStars);
+  return found ?? usePackageStar(packageStars);
 }
 
+// Resolves to `undefined` when the name is not found here and another export may still provide it.
 async function traceExport(
   name: Name,
   importItem: ImportData,
@@ -181,13 +186,15 @@ async function traceExport(
   added: Set<string>,
   visited: Set<string>,
   packageStars: PackageStars,
-): Promise<boolean> {
-  if (!exports) return false;
+): Promise<boolean | undefined> {
+  if (!exports) return undefined;
 
-  // A named re-export takes precedence over `export *`, whatever their order.
-  const isNamed = ([, exportItem]: [string, ExportData]) => Number(exportItem.namedExports?.has(name.name) ?? false);
+  // A named re-export is the only route to its name, whatever the order: no other export is tried after it,
+  // and only the package stars behind it count.
+  const isNamed = (exportItem: ExportData) => exportItem.namedExports?.has(name.name) ?? false;
+  const byNamedFirst = [...exports].sort(([, a], [, b]) => Number(isNamed(b)) - Number(isNamed(a)));
 
-  for (const [targetFilePath, exportItem] of [...exports].sort((a, b) => isNamed(b) - isNamed(a))) {
+  for (const [targetFilePath, exportItem] of byNamedFirst) {
     const isExported = isNameExported(name, exportItem);
     if (!isExported && !exportItem.exportStar) continue;
 
@@ -230,8 +237,12 @@ async function traceExport(
     }
 
     const visitKey = `${targetFilePath}:${effectiveName.name}:${effectiveName.alias ?? ""}`;
-    if (visited.has(visitKey)) continue;
+    if (visited.has(visitKey)) {
+      if (isNamed(exportItem)) return undefined;
+      continue;
+    }
     visited.add(visitKey);
+    const stars: PackageStars = isNamed(exportItem) ? new Map() : packageStars;
     const found = await traceExport(
       effectiveName,
       importItem,
@@ -240,12 +251,13 @@ async function traceExport(
       ctx,
       added,
       visited,
-      packageStars,
+      stars,
     );
-    if (found) return true;
+    if (found !== undefined) return found;
+    if (isNamed(exportItem)) return usePackageStar(stars);
   }
 
-  return false;
+  return undefined;
 }
 
 export async function buildRewrites(analysis: File, filePath: string, ctx: Context): Promise<Rewrites> {

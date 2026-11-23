@@ -55,6 +55,32 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { sep } from "node:path";'],
     deleted: ["index.ts"],
   },
+  "named-through-package-star": {
+    rewritten: ['import { sep } from "node:path";'],
+    deleted: ["index.mjs", "proxy.mjs"],
+  },
+  "named-through-two-package-stars": {
+    rewritten: ['import { sep } from "./index.mjs";'],
+    deleted: [],
+    untraceable: ["sep"],
+  },
+  "named-beside-package-star": {
+    rewritten: ['import { sep } from "node:path";'],
+    deleted: ["index.mjs", "named.mjs", "proxy.mjs"],
+  },
+  "renamed-through-package-star": {
+    rewritten: ['import { sep as separator } from "node:path";'],
+    deleted: ["index.mjs", "named.mjs", "proxy.mjs"],
+  },
+  "named-cycle-shadowed-star": {
+    rewritten: ['import { foo } from "./leaf.mjs";'],
+    deleted: [],
+  },
+  "unresolved-named-beside-package-star": {
+    rewritten: ['import { sep } from "./index.mjs";'],
+    deleted: [],
+    untraceable: ["sep"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {
