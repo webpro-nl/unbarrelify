@@ -2,7 +2,7 @@ import { isAbsolute } from "node:path";
 import { readFile } from "node:fs/promises";
 import ts from "typescript";
 import { resolveModule } from "./resolver.ts";
-import type { Context, ExportMap, File, ImportMap, PathAliases } from "./types.ts";
+import type { Context, ExportData, ExportMap, File, ImportMap, PathAliases } from "./types.ts";
 
 const CHAR_EXCLAMATION = 33; // '!'
 const CHAR_QUESTION = 63; // '?'
@@ -166,28 +166,7 @@ async function processLocalExport(
   sourceFileCache: Map<string, ts.SourceFile>,
 ): Promise<void> {
   if (node.exportClause && ts.isNamedExports(node.exportClause)) {
-    const exportedNames = new Set<string>();
-    const aliases = new Map<string, string>();
-    let exportedAsDefault: string | undefined;
-
-    for (const element of node.exportClause.elements) {
-      exportedNames.add(element.name.text);
-      if (element.propertyName && element.propertyName.text !== element.name.text) {
-        aliases.set(element.name.text, element.propertyName.text);
-      }
-      if (element.name.text === "default" && element.propertyName) {
-        exportedAsDefault = element.propertyName.text;
-      }
-    }
-
-    mergeExport(exports, resolvedPath, {
-      specifier,
-      pos,
-      exportedNames,
-      namedExports: new Set(exportedNames),
-      aliases: aliases.size > 0 ? aliases : undefined,
-      exportedAsDefault,
-    });
+    mergeExport(exports, resolvedPath, { specifier, pos, ...readNamedExports(node.exportClause) });
   } else {
     const namespace =
       node.exportClause && ts.isNamespaceExport(node.exportClause) ? node.exportClause.name.text : undefined;
@@ -211,26 +190,44 @@ function processExternalExport(
   specifier: string,
   pos: { start: number; end: number },
 ): void {
-  const namespace =
-    node.exportClause && ts.isNamespaceExport(node.exportClause) ? node.exportClause.name.text : undefined;
+  const clause = node.exportClause;
+  const data: ExportData = {
+    specifier,
+    pos,
+    exportedNames: new Set(),
+    ...(clause && ts.isNamedExports(clause) ? readNamedExports(clause) : undefined),
+    exportStar: !clause,
+    exportStarIsTypeOnly: !clause ? node.isTypeOnly : undefined,
+    reExportedNs: clause && ts.isNamespaceExport(clause) ? clause.name.text : undefined,
+    externalSpecifier: specifier,
+  };
 
+  // A record with a namespace turns every name it provides into that namespace import, so it stays on its own.
+  if (data.reExportedNs || exports.get(specifier)?.reExportedNs) exports.set(specifier, data);
+  else mergeExport(exports, specifier, data);
+}
+
+function readNamedExports(clause: ts.NamedExports) {
   const exportedNames = new Set<string>();
-  if (node.exportClause && ts.isNamedExports(node.exportClause)) {
-    for (const element of node.exportClause.elements) {
-      exportedNames.add(element.name.text);
+  const aliases = new Map<string, string>();
+  let exportedAsDefault: string | undefined;
+
+  for (const element of clause.elements) {
+    exportedNames.add(element.name.text);
+    if (element.propertyName && element.propertyName.text !== element.name.text) {
+      aliases.set(element.name.text, element.propertyName.text);
+    }
+    if (element.name.text === "default" && element.propertyName) {
+      exportedAsDefault = element.propertyName.text;
     }
   }
 
-  exports.set(specifier, {
-    specifier,
-    pos,
+  return {
     exportedNames,
-    exportStar: !node.exportClause,
-    exportStarIsTypeOnly: !node.exportClause ? node.isTypeOnly : undefined,
-    namedExports: node.exportClause && ts.isNamedExports(node.exportClause) ? new Set(exportedNames) : undefined,
-    reExportedNs: namespace,
-    externalSpecifier: specifier,
-  });
+    namedExports: new Set(exportedNames),
+    aliases: aliases.size > 0 ? aliases : undefined,
+    exportedAsDefault,
+  };
 }
 
 function mergeExport(exports: ExportMap, path: string, data: ExportMap extends Map<string, infer T> ? T : never): void {

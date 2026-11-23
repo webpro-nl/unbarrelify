@@ -191,18 +191,6 @@ async function traceExport(
     const isExported = isNameExported(name, exportItem);
     if (!isExported && !exportItem.exportStar) continue;
 
-    const external = isAbsolute(targetFilePath) ? exportItem.externalSpecifier : targetFilePath;
-    if (external) {
-      if (exportItem.exportedNames.has(name.name) || exportItem.reExportedNs === name.name) {
-        if (addRewrite(name, importItem, exportItem, external, rewrites, added)) return true;
-      } else if (exportItem.exportStar && exportItem.exportedNames.size === 0) {
-        packageStars.set(external, () => addRewrite(name, importItem, exportItem, external, rewrites, added));
-      }
-      continue;
-    }
-
-    if (isIgnoredPath(targetFilePath, ctx.base)) continue;
-
     const alias = exportItem.aliases?.get(name.name);
     let effectiveName: Name;
 
@@ -218,6 +206,18 @@ async function traceExport(
     } else {
       effectiveName = name;
     }
+
+    const external = isAbsolute(targetFilePath) ? exportItem.externalSpecifier : targetFilePath;
+    if (external) {
+      if (exportItem.exportedNames.has(name.name) || exportItem.reExportedNs === name.name) {
+        if (addRewrite(effectiveName, importItem, exportItem, external, rewrites, added)) return true;
+      } else if (exportItem.exportStar && (!isAbsolute(targetFilePath) || exportItem.exportedNames.size === 0)) {
+        packageStars.set(external, () => addRewrite(name, importItem, exportItem, external, rewrites, added));
+      }
+      continue;
+    }
+
+    if (isIgnoredPath(targetFilePath, ctx.base)) continue;
 
     const targetFile = await analyzeFile(targetFilePath, ctx);
 

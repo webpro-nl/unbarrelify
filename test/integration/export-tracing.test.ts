@@ -28,6 +28,33 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { sep } from "node:path";'],
     deleted: ["index.mjs"],
   },
+  "package-named-then-star": {
+    rewritten: ['import { sep } from "node:path";'],
+    deleted: ["index.mjs"],
+  },
+  "package-star-then-named": {
+    rewritten: ['import { basename } from "./index.mjs";'],
+    deleted: [],
+    untraceable: ["basename"],
+  },
+  "package-named-alias": {
+    rewritten: ['import { basename as fn } from "node:path";'],
+    deleted: ["index.mjs"],
+  },
+  "package-namespace-then-named": {
+    rewritten: ['import { sep } from "node:path";'],
+    deleted: ["index.mjs"],
+  },
+  "package-named-then-namespace": {
+    rewritten: ['import { sep } from "./index.mjs";'],
+    deleted: [],
+    untraceable: ["sep"],
+  },
+  "aliased-local-star": {
+    consumer: "consumer.ts",
+    rewritten: ['import { sep } from "node:path";'],
+    deleted: ["index.ts"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {
