@@ -215,6 +215,16 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { value } from "./right.mjs";'],
     deleted: ["special.mjs"],
   },
+  "bare-star-shadowed-by-paths": {
+    consumer: "app/consumer.mjs",
+    rewritten: ['import { value } from "../producer/real.mjs";'],
+    deleted: ["producer/barrel.mjs"],
+  },
+  "aliased-local-star-name": {
+    consumer: "consumer.ts",
+    rewritten: ['import { first } from "@lib/names.ts";'],
+    deleted: ["index.ts"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {

@@ -1,0 +1,7 @@
+{
+  "name": "shared-kit",
+  "type": "module",
+  "exports": {
+    "./leaf": "./own.mjs"
+  }
+}

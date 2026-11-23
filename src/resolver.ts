@@ -42,8 +42,8 @@ function stripQueryString(specifier: string): string {
   return queryIndex === -1 ? specifier : specifier.slice(0, queryIndex);
 }
 
-// Node matches a package-private key as written, `?` and `#` included, while oxc-resolver splits those off
-// first. TypeScript's Node resolution finds such a key; declaration files are hidden so it returns the module.
+// Node's own lookup, from TypeScript: package.json only, no tsconfig paths. Declaration files are hidden so it
+// returns the module.
 const nodeResolution: ts.CompilerOptions = {
   allowJs: true,
   module: ts.ModuleKind.NodeNext,
@@ -54,11 +54,15 @@ const moduleFiles: ts.ModuleResolutionHost = {
   fileExists: (path) => !/\.d\.[cm]?ts$/.test(path) && ts.sys.fileExists(path),
 };
 
-function resolvePackageImportKey(fromPath: string, key: string): string | undefined {
-  if (!/^#.*[?#]/.test(key)) return undefined;
+function resolveLikeNode(fromPath: string, specifier: string): string | undefined {
   const mode = ts.ModuleKind.ESNext;
-  return ts.resolveModuleName(key, fromPath, nodeResolution, moduleFiles, undefined, undefined, mode).resolvedModule
-    ?.resolvedFileName;
+  return ts.resolveModuleName(specifier, fromPath, nodeResolution, moduleFiles, undefined, undefined, mode)
+    .resolvedModule?.resolvedFileName;
+}
+
+// Node matches a package-private key as written, `?` and `#` included, while oxc-resolver splits those off first.
+function resolvePackageImportKey(fromPath: string, key: string): string | undefined {
+  return /^#.*[?#]/.test(key) ? resolveLikeNode(fromPath, key) : undefined;
 }
 
 export function isPackageImportKey(fromPath: string, key: string): boolean {
@@ -176,8 +180,7 @@ export function buildRewriteSpecifier(
   options: Pick<SpecifierOptions, "aliases" | "ext">,
 ): string {
   let base = rewrite.externalSpecifier;
-  // A bare specifier for a local file is kept only where it resolves to that file from the consumer.
-  if (!base || (isAbsolute(to) && resolveModule(from, base, options.aliases ?? null) !== to)) {
+  if (!base || (isAbsolute(to) && !namesFile(from, base, to, options.aliases ?? null))) {
     base = buildSpecifier(from, to, {
       ...options,
       originalSpecifier: rewrite.originalSpecifier,
@@ -186,6 +189,14 @@ export function buildRewriteSpecifier(
     });
   }
   return (rewrite.specifierPrefix ?? "") + base + (rewrite.specifierSuffix ?? "");
+}
+
+// A bare specifier for a local file is kept only where it resolves to that file from the consumer, and Node,
+// which ignores tsconfig paths, does not find another file for it.
+function namesFile(from: string, specifier: string, to: string, aliases: PathAliases | null): boolean {
+  if (resolveModule(from, specifier, aliases) !== to) return false;
+  const nodeTarget = resolveLikeNode(from, specifier);
+  return nodeTarget === undefined || nodeTarget === to;
 }
 
 function inferAliasSpecifier(originalSpecifier: string, targetPath: string): string | null {
