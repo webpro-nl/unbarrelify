@@ -4,6 +4,12 @@ export const JS_EXT_PATTERN = new RegExp(`\\.(${EXTENSIONS.join("|")})$`);
 export const DEFAULT_GLOBS = JS_EXTENSIONS.map((ext) => `**/*${ext}`);
 export const RESOLVER_EXTENSIONS = [...JS_EXTENSIONS, ".json"] as const;
 export const TS_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts"]);
+export const MODULE_FORMAT_EXTENSIONS = new Map([
+  [".mts", ".mjs"],
+  [".mjs", ".mjs"],
+  [".cts", ".cjs"],
+  [".cjs", ".cjs"],
+]);
 
 const IGNORED_PATH_PATTERN = /\/node_modules\/|\.d\.ts$/;
 // TODO: properly respect .ignore

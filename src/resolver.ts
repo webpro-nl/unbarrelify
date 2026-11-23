@@ -4,7 +4,7 @@ import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
 import { getExtensionFromSpecifier, tryMapToAlias } from "./config.ts";
 import type { PathAliases, Rewrite } from "./types.ts";
-import { JS_EXT_PATTERN, RESOLVER_EXTENSIONS, TS_EXTENSIONS } from "./constants.ts";
+import { JS_EXT_PATTERN, MODULE_FORMAT_EXTENSIONS, RESOLVER_EXTENSIONS, TS_EXTENSIONS } from "./constants.ts";
 
 const resolverOptions: NapiResolveOptions = {
   tsconfig: "auto",
@@ -135,7 +135,10 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     finalExt = extname(to) || null;
   }
 
-  const realTo = finalExt && TS_EXTENSIONS.has(finalExt) ? to : ensureExtension(to, finalExt);
+  const realTo =
+    finalExt && TS_EXTENSIONS.has(finalExt)
+      ? to
+      : ensureExtension(to, MODULE_FORMAT_EXTENSIONS.get(extname(to)) ?? finalExt);
   const relPath = relative(realFromDir, realTo);
   return relPath.startsWith(".") ? relPath : `./${relPath}`;
 }

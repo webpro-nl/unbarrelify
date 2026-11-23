@@ -109,5 +109,22 @@ describe("resolver", () => {
       assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.mts", options), "./b.mts");
       assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.tsx", { ext: ".ts" }), "./b.tsx");
     });
+
+    test("keeps the module format of the target for JavaScript-style specifiers", () => {
+      const options = { originalSpecifier: "./index.js" };
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.ts", options), "./b.js");
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.mts", options), "./b.mjs");
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.cts", options), "./b.cjs");
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.mjs", options), "./b.mjs");
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.cjs", options), "./b.cjs");
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.mts", { ext: ".js" }), "./b.mjs");
+    });
+
+    test("keeps the module format of the target for extensionless specifiers", () => {
+      const options = { originalSpecifier: "./index" };
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.ts", options), "./b");
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.mts", options), "./b.mjs");
+      assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.cts", options), "./b.cjs");
+    });
   });
 });
