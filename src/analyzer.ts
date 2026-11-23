@@ -2,7 +2,7 @@ import { isAbsolute } from "node:path";
 import { readFile } from "node:fs/promises";
 import ts from "typescript";
 import { resolveModule } from "./resolver.ts";
-import type { Context, ExportData, ExportMap, File, ImportMap, PathAliases } from "./types.ts";
+import type { Context, ExportMap, File, ImportMap, PathAliases } from "./types.ts";
 
 const CHAR_EXCLAMATION = 33; // '!'
 const CHAR_QUESTION = 63; // '?'
@@ -170,7 +170,7 @@ async function processLocalExport(
   } else {
     const namespace =
       node.exportClause && ts.isNamespaceExport(node.exportClause) ? node.exportClause.name.text : undefined;
-    const exportedNames = await getExportedNames(resolvedPath, sourceFileCache);
+    const exportedNames = namespace ? new Set<string>() : await getExportedNames(resolvedPath, sourceFileCache);
 
     mergeExport(exports, resolvedPath, {
       specifier,
@@ -191,7 +191,7 @@ function processExternalExport(
   pos: { start: number; end: number },
 ): void {
   const clause = node.exportClause;
-  const data: ExportData = {
+  mergeExport(exports, specifier, {
     specifier,
     pos,
     exportedNames: new Set(),
@@ -200,11 +200,7 @@ function processExternalExport(
     exportStarIsTypeOnly: !clause ? node.isTypeOnly : undefined,
     reExportedNs: clause && ts.isNamespaceExport(clause) ? clause.name.text : undefined,
     externalSpecifier: specifier,
-  };
-
-  // A record with a namespace turns every name it provides into that namespace import, so it stays on its own.
-  if (data.reExportedNs || exports.get(specifier)?.reExportedNs) exports.set(specifier, data);
-  else mergeExport(exports, specifier, data);
+  });
 }
 
 function readNamedExports(clause: ts.NamedExports) {

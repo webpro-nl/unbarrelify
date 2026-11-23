@@ -42,7 +42,7 @@ export function buildRewriteItem(name: Name, importItem: ImportData, exportItem:
       isDefault && isReExport ? [{ name: "default", alias: name.alias ?? importItem.name }] : isDefault ? [] : [name],
     members: importItem.type === "ns" && !isDefault ? [{ name: name.name }] : [],
     externalSpecifier: exportItem.externalSpecifier,
-    reExportedNs: exportItem.reExportedNs,
+    reExportedNs: exportItem.reExportedNs === name.name ? (name.alias ?? name.name) : undefined,
     defaultName: isDefault && !isReExport ? (name.alias ?? importItem.name) : undefined,
     originalSpecifier: importItem.originalSpecifier,
     packageTargetSpecifier: importItem.originalSpecifier?.startsWith("#") ? exportItem.specifier : undefined,
@@ -109,8 +109,6 @@ export function applyRewrites(
 
 function isNameExported(name: Name, exportItem: ExportData): boolean {
   if (exportItem.reExportedNs === name.name) return true;
-  // `export * as ns` exports only `ns`; the names recorded for it are the members of that namespace.
-  if (exportItem.reExportedNs && !exportItem.exportStar && !exportItem.namedExports) return false;
   if (exportItem.exportedNames.size === 0) {
     return !!exportItem.externalSpecifier;
   }
@@ -130,7 +128,6 @@ function addRewrite(
   const pos = `${importItem.pos.start}:${importItem.pos.end}`;
   const nameKey = `${pos}:${name.name}:${name.alias ?? ""}`;
   if (added.has(nameKey)) return false;
-  added.add(nameKey);
 
   let posRewrites = rewrites.get(pos);
   if (!posRewrites) {
@@ -138,18 +135,18 @@ function addRewrite(
     rewrites.set(pos, posRewrites);
   }
 
+  const item = buildRewriteItem(name, importItem, exportItem);
   const existing = posRewrites.get(targetFilePath);
+  // A rewrite is either a namespace import or named imports, so one declaration cannot take both from a target.
+  if (existing && existing.reExportedNs !== item.reExportedNs) return false;
+  added.add(nameKey);
+
   if (!existing) {
-    posRewrites.set(targetFilePath, buildRewriteItem(name, importItem, exportItem));
+    posRewrites.set(targetFilePath, item);
+  } else if (importItem.type === "ns") {
+    existing.members.push({ name: name.name });
   } else {
-    if (importItem.type === "ns") {
-      existing.members.push({ name: name.name });
-    } else {
-      existing.named.push(name);
-    }
-    if (exportItem.reExportedNs) {
-      existing.reExportedNs = exportItem.reExportedNs;
-    }
+    existing.named.push(name);
   }
 
   return true;
@@ -189,9 +186,10 @@ async function traceExport(
 ): Promise<boolean | undefined> {
   if (!exports) return undefined;
 
-  // A named re-export is the only route to its name, whatever the order: no other export is tried after it,
-  // and only the package stars behind it count.
-  const isNamed = (exportItem: ExportData) => exportItem.namedExports?.has(name.name) ?? false;
+  // A named or namespace re-export is the only route to its name, whatever the order: no other export is tried
+  // after it, and only the package stars behind it count.
+  const isNamed = (exportItem: ExportData) =>
+    exportItem.reExportedNs === name.name || (exportItem.namedExports?.has(name.name) ?? false);
   const byNamedFirst = [...exports].sort(([, a], [, b]) => Number(isNamed(b)) - Number(isNamed(a)));
 
   for (const [targetFilePath, exportItem] of byNamedFirst) {

@@ -46,9 +46,8 @@ const cases: Record<string, Expected> = {
     deleted: ["index.mjs"],
   },
   "package-named-then-namespace": {
-    rewritten: ['import { sep } from "./index.mjs";'],
-    deleted: [],
-    untraceable: ["sep"],
+    rewritten: ['import { sep } from "node:path";'],
+    deleted: ["index.mjs"],
   },
   "aliased-local-star": {
     consumer: "consumer.ts",
@@ -85,6 +84,27 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { value } from "./index.mjs";'],
     deleted: [],
     untraceable: ["value"],
+  },
+  "namespace-and-named-local": {
+    rewritten: ['import { sep } from "node:path";', 'import { other } from "./local.mjs";'],
+    deleted: ["index.mjs"],
+  },
+  "namespace-from-mixed-record": {
+    rewritten: ['import * as p from "node:path";'],
+    deleted: ["index.mjs"],
+  },
+  "namespace-and-named-one-import": {
+    rewritten: ['import { p, sep } from "./index.mjs";'],
+    deleted: [],
+    untraceable: ["sep"],
+  },
+  "namespace-over-star": {
+    rewritten: ['import * as tools from "./tools.mjs";'],
+    deleted: ["index.mjs"],
+  },
+  "namespace-renamed-by-consumer": {
+    rewritten: ['import * as mine from "./tools.mjs";'],
+    deleted: ["index.mjs"],
   },
 };
 
