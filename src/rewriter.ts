@@ -214,46 +214,45 @@ async function traceExport(
       effectiveName = name;
     }
 
+    const stars: PackageStars = isNamed(exportItem) ? new Map() : packageStars;
     const external = isAbsolute(targetFilePath) ? exportItem.externalSpecifier : targetFilePath;
+
     if (external) {
       if (exportItem.exportedNames.has(name.name) || exportItem.reExportedNs === name.name) {
         if (addRewrite(effectiveName, importItem, exportItem, external, rewrites, added)) return true;
       } else if (exportItem.exportStar && (!isAbsolute(targetFilePath) || exportItem.exportedNames.size === 0)) {
         packageStars.set(external, () => addRewrite(name, importItem, exportItem, external, rewrites, added));
       }
-      continue;
-    }
+    } else if (!isIgnoredPath(targetFilePath, ctx.base)) {
+      const targetFile = await analyzeFile(targetFilePath, ctx);
 
-    if (isIgnoredPath(targetFilePath, ctx.base)) continue;
-
-    const targetFile = await analyzeFile(targetFilePath, ctx);
-
-    if (!targetFile.isBarrel) {
-      if (isExported && addRewrite(effectiveName, importItem, exportItem, targetFilePath, rewrites, added)) {
-        return true;
+      if (!targetFile.isBarrel) {
+        if (isExported && addRewrite(effectiveName, importItem, exportItem, targetFilePath, rewrites, added)) {
+          return true;
+        }
+      } else if (ctx.only.length === 0) {
+        ctx.tracker.register(targetFilePath);
       }
-    } else if (ctx.only.length === 0) {
-      ctx.tracker.register(targetFilePath);
+
+      const visitKey = `${targetFilePath}:${effectiveName.name}:${effectiveName.alias ?? ""}`;
+      if (visited.has(visitKey)) {
+        if (isNamed(exportItem)) return undefined;
+        continue;
+      }
+      visited.add(visitKey);
+      const found = await traceExport(
+        effectiveName,
+        importItem,
+        targetFile.exports,
+        rewrites,
+        ctx,
+        added,
+        visited,
+        stars,
+      );
+      if (found !== undefined) return found;
     }
 
-    const visitKey = `${targetFilePath}:${effectiveName.name}:${effectiveName.alias ?? ""}`;
-    if (visited.has(visitKey)) {
-      if (isNamed(exportItem)) return undefined;
-      continue;
-    }
-    visited.add(visitKey);
-    const stars: PackageStars = isNamed(exportItem) ? new Map() : packageStars;
-    const found = await traceExport(
-      effectiveName,
-      importItem,
-      targetFile.exports,
-      rewrites,
-      ctx,
-      added,
-      visited,
-      stars,
-    );
-    if (found !== undefined) return found;
     if (isNamed(exportItem)) return usePackageStar(stars);
   }
 

@@ -81,6 +81,11 @@ const cases: Record<string, Expected> = {
     deleted: [],
     untraceable: ["sep"],
   },
+  "named-to-ignored-target": {
+    rewritten: ['import { value } from "./index.mjs";'],
+    deleted: [],
+    untraceable: ["value"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {
