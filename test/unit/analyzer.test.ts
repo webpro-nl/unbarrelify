@@ -19,6 +19,7 @@ function createTestContext(): Context {
     preservedBarrels: new Set(),
     includedBarrels: new Set(),
     fileCache: new Map<string, File>(),
+    sourceFileCache: new Map(),
     isPackageEntryPoint: () => false,
     progress: () => {},
   };

@@ -80,6 +80,7 @@ async function createContext(options: Options): Promise<Context> {
     preservedBarrels,
     includedBarrels,
     fileCache: new Map<string, File>(),
+    sourceFileCache: new Map(),
     isPackageEntryPoint: project.isPackageEntryPoint,
     progress,
     tracker,
