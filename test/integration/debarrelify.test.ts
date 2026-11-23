@@ -1510,4 +1510,29 @@ describe("unbarrelify integration tests", () => {
       });
     }
   });
+
+  describe("vue-side-effect-import fixture", () => {
+    for (const only of [[], ["barrel.ts"]]) {
+      test(`keeps a barrel that Vue and Svelte files import in any form (only: ${JSON.stringify(only)})`, async (t) => {
+        const fixtureDir = await copyFixture(t, "vue-side-effect-import");
+
+        const result = await unbarrelify({ cwd: fixtureDir, files: ["**/*.ts"], only, write: true });
+
+        assert.deepEqual(result.modified, [join(fixtureDir, "static.ts")]);
+        assert.deepEqual(result.deleted, []);
+        assert.deepEqual(
+          result.preserved.map(({ path, reason, consumers }) => ({ path, reason, consumers: consumers.toSorted() })),
+          [
+            {
+              path: join(fixtureDir, "barrel.ts"),
+              reason: "non-ts-import",
+              consumers: ["comment.vue", "exported.vue", "page.vue", "quoted.vue", "sameline.svelte"].map((name) =>
+                join(fixtureDir, name),
+              ),
+            },
+          ],
+        );
+      });
+    }
+  });
 });

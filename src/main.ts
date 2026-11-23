@@ -331,7 +331,11 @@ function pickBestExample(
   return current;
 }
 
-const IMPORT_PATTERN = /(?:(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?|import\s*\(\s*)['"]([^'"]+)['"]/g;
+const IMPORT_PATTERNS = [
+  /import\s+['"]([^'"]+)['"]/g,
+  /(?:import|export)\s+[\s\S]*?\s+from\s+['"]([^'"]+)['"]/g,
+  /import\s*\(\s*['"]([^'"]+)['"]/g,
+];
 const NON_TS_FILE_GLOB = "**/*.{astro,html,marko,mdx,svelte,vue}";
 
 async function trackNonTsConsumers(ctx: Context): Promise<void> {
@@ -346,8 +350,8 @@ async function trackNonTsConsumers(ctx: Context): Promise<void> {
   for (const nonTsFile of nonTsFiles) {
     const content = await readFile(nonTsFile, "utf-8");
 
-    for (const match of content.matchAll(IMPORT_PATTERN)) {
-      const rawSpecifier = match[1];
+    const specifiers = IMPORT_PATTERNS.flatMap((pattern) => [...content.matchAll(pattern)].map((match) => match[1]));
+    for (const rawSpecifier of specifiers) {
       const { path: specifier } = parseSpecifier(rawSpecifier);
 
       const resolved = resolveModule(nonTsFile, specifier, ctx.aliases);
