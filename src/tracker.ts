@@ -117,6 +117,7 @@ export class BarrelTracker {
     const untracedConsumers: string[] = [];
     const barrelConsumers: string[] = [];
     const failedConsumers: string[] = [];
+    const sideEffectConsumers: string[] = [];
     const untraced = new Set(
       this.untraceableImports.filter((entry) => entry.barrelPath === barrelPath).map((entry) => entry.consumerPath),
     );
@@ -135,6 +136,11 @@ export class BarrelTracker {
         untracedConsumers.push(consumer);
         continue;
       }
+      const consumerImports = ctx.fileCache.get(consumer)?.imports.get(barrelPath);
+      if (consumerImports && [...consumerImports].some((item) => item.type === "side-effect")) {
+        sideEffectConsumers.push(consumer);
+        continue;
+      }
       if (this.barrels.has(consumer) || ctx.fileCache.get(consumer)?.isBarrel || ctx.includedBarrels.has(consumer)) {
         barrelConsumers.push(consumer);
         continue;
@@ -150,6 +156,7 @@ export class BarrelTracker {
     if (untracedConsumers.length > 0) results.push({ reason: "untraceable-import", consumers: untracedConsumers });
     if (barrelConsumers.length > 0) results.push({ reason: "barrel-reexport", consumers: barrelConsumers });
     if (failedConsumers.length > 0) results.push({ reason: "consumer-error", consumers: failedConsumers });
+    if (sideEffectConsumers.length > 0) results.push({ reason: "side-effect-import", consumers: sideEffectConsumers });
     return results;
   }
 }

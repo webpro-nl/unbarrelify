@@ -40,7 +40,7 @@ export interface ImportData {
   names?: Name[];
   members?: Name[];
   pos: Position;
-  type: "named" | "default" | "ns" | "as" | "export";
+  type: "named" | "default" | "ns" | "as" | "export" | "side-effect";
   originalSpecifier?: string;
   isTypeOnly?: boolean;
   specifierPrefix?: string;
@@ -126,7 +126,8 @@ export interface PreservedBarrel {
     | "star-reexport"
     | "untraceable-import"
     | "barrel-reexport"
-    | "consumer-error";
+    | "consumer-error"
+    | "side-effect-import";
   consumers: string[];
 }
 

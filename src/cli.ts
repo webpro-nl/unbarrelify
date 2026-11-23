@@ -186,6 +186,7 @@ export async function main(): Promise<void> {
   const untraceableBarrels = result.preserved.filter((p) => p.reason === "untraceable-import");
   const barrelReExports = result.preserved.filter((p) => p.reason === "barrel-reexport");
   const failedBarrels = result.preserved.filter((p) => p.reason === "consumer-error");
+  const sideEffectBarrels = result.preserved.filter((p) => p.reason === "side-effect-import");
 
   if (skipped.length > 0) {
     console.error(
@@ -276,6 +277,18 @@ export async function main(): Promise<void> {
       `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (consumers could not be processed, see errors above):`,
     );
     for (const { path, consumers } of failedBarrels) {
+      console.error(`  ${rel(path)}`);
+      for (const consumer of consumers ?? []) {
+        console.error(`    └─ ${rel(consumer)}`);
+      }
+    }
+  }
+
+  if (sideEffectBarrels.length > 0) {
+    console.error(
+      `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (imported for side effects):`,
+    );
+    for (const { path, consumers } of sideEffectBarrels) {
       console.error(`  ${rel(path)}`);
       for (const consumer of consumers ?? []) {
         console.error(`    └─ ${rel(consumer)}`);

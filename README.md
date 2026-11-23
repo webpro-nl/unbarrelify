@@ -150,7 +150,8 @@ interface PreservedBarrel {
     | "star-reexport"
     | "untraceable-import"
     | "barrel-reexport"
-    | "consumer-error";
+    | "consumer-error"
+    | "side-effect-import";
   consumers: string[];
 }
 ```
@@ -196,6 +197,7 @@ This prevents barrel files from getting deleted:
 - Imports with names that cannot be traced are not modified, so the imported barrel file is not deleted.
 - Barrel files re-exported by a preserved barrel file are not deleted.
 - If writing a file fails, the imported barrel file is not deleted (the file may be partially written).
+- Side-effect imports are not modified, so the imported barrel file is not deleted (e.g. `import "./barrel.ts"`).
 
 The output in CLI prints "Preserved barrel files" with details.
 

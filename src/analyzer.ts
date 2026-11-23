@@ -289,11 +289,20 @@ function processImportDeclaration(
   if (!resolvedPath || !isAbsolute(resolvedPath)) return;
 
   const clause = node.importClause;
-  if (!clause) return;
-
   const pos = { start: node.getStart(sourceFile), end: node.end };
   const specifierPrefix = prefix || undefined;
   const specifierSuffix = suffix || undefined;
+
+  if (!clause) {
+    addToImportMap(imports, resolvedPath, {
+      type: "side-effect",
+      pos,
+      originalSpecifier: path,
+      specifierPrefix,
+      specifierSuffix,
+    });
+    return;
+  }
 
   if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
     addToImportMap(imports, resolvedPath, {

@@ -1536,6 +1536,27 @@ describe("unbarrelify integration tests", () => {
     }
   });
 
+  describe("side-effect-import fixture", () => {
+    for (const only of [[], ["barrel.ts"]]) {
+      test(`keeps a barrel imported for its side effects (only: ${JSON.stringify(only)})`, async (t) => {
+        const fixtureDir = await copyFixture(t, "side-effect-import");
+
+        const result = await unbarrelify({ cwd: fixtureDir, files: ["**/*.ts"], only, write: true });
+
+        assert.deepEqual(result.modified, [join(fixtureDir, "static.ts")]);
+        assert.deepEqual(result.deleted, []);
+        assert.deepEqual(result.preserved, [
+          {
+            path: join(fixtureDir, "barrel.ts"),
+            reason: "side-effect-import",
+            consumers: [join(fixtureDir, "setup.ts")],
+          },
+        ]);
+        assert.equal(await read(join(fixtureDir, "setup.ts")), 'import "./barrel.ts";\n');
+      });
+    }
+  });
+
   describe("default-namespace-import fixture", () => {
     for (const only of [[], ["multi.ts", "single.ts"]]) {
       test(`keeps declarations that combine default and namespace imports (only: ${JSON.stringify(only)})`, async (t) => {
