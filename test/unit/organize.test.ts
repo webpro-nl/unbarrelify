@@ -1,24 +1,16 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import ts from "typescript";
 import { organizeImports } from "../../src/organize.ts";
+import { copyFixture, read } from "../helpers.ts";
 
 describe("organizeImports", () => {
   test("keeps compiler suppression directives attached to their imports", async (t) => {
-    const dir = await mkdtemp(join(tmpdir(), "unbarrelify-import-directives-"));
-    t.after(() => rm(dir, { recursive: true }));
+    const dir = await copyFixture(t, "organize-ts-directives");
     const file = join(dir, "consumer.ts");
-    const content = `// @ts-expect-error This JavaScript module has no declarations.
-import { foo } from "./legacy.js";
-// @ts-expect-error This JavaScript module has no declarations.
-import { bar } from "./legacy.js";
-console.log(foo, bar);
-`;
-    await writeFile(join(dir, "legacy.js"), "export const foo = 1, bar = 2;\n");
-    await writeFile(file, content);
+    const content = await read(file);
     const diagnostics = () =>
       ts
         .getPreEmitDiagnostics(
