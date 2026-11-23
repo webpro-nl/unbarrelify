@@ -58,6 +58,29 @@ for (const consumers of [["failed.ts"], ["written.ts", "failed.ts"]]) {
   });
 }
 
+for (const name of ["unreadable.ts", "unreadable.vue"]) {
+  test(`stops without deleting barrels when reading ${name} fails`, async (t) => {
+    const { dir, barrel } = await createProject(t, ["written.ts", name]);
+    const unreadable = join(dir, name);
+    const originalRead = fs.readFile;
+    const readError = Object.assign(new Error("simulated read failure"), { code: "EACCES" });
+    t.mock.method(console, "error", () => {});
+    const reader = t.mock.method(fs, "readFile", async (...args: Parameters<typeof fs.readFile>) => {
+      if (args[0] === unreadable) throw readError;
+      return originalRead(...args);
+    });
+    syncBuiltinESMExports();
+
+    try {
+      await assert.rejects(unbarrelify({ cwd: dir, files: ["*.ts"], ext: ".ts", write: true }), readError);
+      assert.ok(existsSync(barrel), "the unreadable consumer may still import the barrel");
+    } finally {
+      reader.mock.restore();
+      syncBuiltinESMExports();
+    }
+  });
+}
+
 for (const options of [{ write: true }, { write: false }, { write: true, check: true }]) {
   test(`retains successful rewrite behavior for ${JSON.stringify(options)}`, async (t) => {
     const { dir, barrel, original } = await createProject(t, ["consumer.ts"]);

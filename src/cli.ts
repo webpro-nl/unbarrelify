@@ -4,7 +4,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { realpathSync } from "node:fs";
 import { parseArgs, styleText, type ParseArgsConfig } from "node:util";
 import { unbarrelify } from "./main.ts";
-import type { Options, ProgressEvent } from "./types.ts";
+import type { Options, ProgressEvent, Result } from "./types.ts";
 
 export interface ParsedArgs {
   only: string[];
@@ -166,161 +166,165 @@ export async function main(): Promise<void> {
     console.error(styleText("cyan", "ℹ") + " Running in dry-run mode (use --write to apply changes)\n");
   }
 
+  let result: Result;
+
   try {
-    const result = await unbarrelify(options);
-
-    const skipped = result.preserved.filter((p) => p.reason === "skip");
-    const namespace = result.preserved.filter((p) => p.reason === "namespace-import");
-    const nonTs = result.preserved.filter((p) => p.reason === "non-ts-import");
-    const dynamic = result.preserved.filter((p) => p.reason === "dynamic-import");
-    const starReExports = result.preserved.filter((p) => p.reason === "star-reexport");
-    const untraceableBarrels = result.preserved.filter((p) => p.reason === "untraceable-import");
-    const barrelReExports = result.preserved.filter((p) => p.reason === "barrel-reexport");
-    const failedBarrels = result.preserved.filter((p) => p.reason === "consumer-error");
-
-    if (skipped.length > 0) {
-      console.error(
-        `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (via --skip, tsconfig#files, or package.json#exports):`,
-      );
-      for (const { path } of skipped) {
-        console.error(`  ${rel(path)}`);
-      }
-    }
-
-    if (namespace.length > 0) {
-      const hint = args.unsafeNamespace ? "" : ", use --unsafe-namespace to rewrite";
-      console.error(
-        `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (has namespace imports${hint}):`,
-      );
-      for (const { path, consumers } of namespace) {
-        console.error(`  ${rel(path)}`);
-        for (const consumer of consumers ?? []) {
-          console.error(`    └─ ${rel(consumer)}`);
-        }
-      }
-    }
-
-    if (nonTs.length > 0) {
-      console.error(
-        `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (imports rewritten except for non-JS/TS files):`,
-      );
-      for (const { path, consumers } of nonTs) {
-        console.error(`  ${rel(path)}`);
-        for (const consumer of consumers ?? []) {
-          console.error(`    └─ ${rel(consumer)}`);
-        }
-      }
-    }
-
-    if (dynamic.length > 0) {
-      console.error(
-        `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (rewiring dynamic imports is not supported):`,
-      );
-      for (const { path, consumers } of dynamic) {
-        console.error(`  ${rel(path)}`);
-        if (consumers) {
-          for (const consumer of consumers) {
-            console.error(`    └─ ${rel(consumer)}`);
-          }
-        }
-      }
-    }
-
-    if (starReExports.length > 0) {
-      console.error(
-        `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (has curated star re-exports that cannot be flattened safely):`,
-      );
-      for (const { path, consumers } of starReExports) {
-        console.error(`  ${rel(path)}`);
-        for (const consumer of consumers ?? []) {
-          console.error(`    └─ ${rel(consumer)}`);
-        }
-      }
-    }
-
-    if (untraceableBarrels.length > 0) {
-      console.error(
-        `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (has untraceable imports, listed below):`,
-      );
-      for (const { path, consumers } of untraceableBarrels) {
-        console.error(`  ${rel(path)}`);
-        for (const consumer of consumers ?? []) {
-          console.error(`    └─ ${rel(consumer)}`);
-        }
-      }
-    }
-
-    if (barrelReExports.length > 0) {
-      console.error(
-        `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (re-exported by preserved barrel files):`,
-      );
-      for (const { path, consumers } of barrelReExports) {
-        console.error(`  ${rel(path)}`);
-        for (const consumer of consumers ?? []) {
-          console.error(`    └─ ${rel(consumer)}`);
-        }
-      }
-    }
-
-    if (failedBarrels.length > 0) {
-      console.error(
-        `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (consumers could not be processed, see errors above):`,
-      );
-      for (const { path, consumers } of failedBarrels) {
-        console.error(`  ${rel(path)}`);
-        for (const consumer of consumers ?? []) {
-          console.error(`    └─ ${rel(consumer)}`);
-        }
-      }
-    }
-
-    if (result.untraceableImports.length > 0) {
-      console.error(`\n${styleText("yellow", "⚠")} Untraceable imports (export not found in barrel or source file):`);
-      const grouped = new Map<string, Map<string, string[]>>();
-      for (const { barrelPath, consumerPath, name } of result.untraceableImports) {
-        let byBarrel = grouped.get(barrelPath);
-        if (!byBarrel) {
-          byBarrel = new Map();
-          grouped.set(barrelPath, byBarrel);
-        }
-        let names = byBarrel.get(consumerPath);
-        if (!names) {
-          names = [];
-          byBarrel.set(consumerPath, names);
-        }
-        names.push(name);
-      }
-      for (const [barrelPath, consumers] of grouped) {
-        console.error(`  ${rel(barrelPath)}`);
-        for (const [consumerPath, names] of consumers) {
-          console.error(`    └─ ${rel(consumerPath)}: ${names.join(", ")}`);
-        }
-      }
-    }
-
-    if (result.exampleDiff && (!options.write || args.check)) {
-      console.log(`\n${styleText("cyan", "ℹ")} Largest rewire diff:`);
-      console.log(result.exampleDiff);
-    }
-
-    console.log(`\n${styleText("green", "✔")} Summary:`);
-    console.log(`  Modified ${result.modified.length} file(s)`);
-    console.log(`  Deleted ${result.deleted.length} barrel file(s)`);
-
-    if (args.check && (result.modified.length > 0 || result.deleted.length > 0)) {
-      console.error(`\n${styleText("red", "✖")} Check failed: changes would be made.`);
-    }
-
-    if (!options.write && !args.check && (result.modified.length > 0 || result.deleted.length > 0)) {
-      console.error(`\n${styleText("cyan", "ℹ")} Run with --write to apply these changes.`);
-    }
-
-    if (args.check && (result.modified.length > 0 || result.deleted.length > 0)) {
-      process.exit(1);
-    }
+    result = await unbarrelify(options);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`Error: ${message}`);
+    const err: NodeJS.ErrnoException = error instanceof Error ? error : new Error(String(error));
+    const reason = err.code && err.path ? `Could not read ${rel(err.path)} (${err.code})` : err.message;
+    const kept = args.write && !args.check ? " Files rewritten before this error keep their changes." : "";
+    console.error(`\n${styleText("red", "✖")} ${reason}. No barrel files were deleted.${kept}`);
+    process.exit(1);
+  }
+
+  const skipped = result.preserved.filter((p) => p.reason === "skip");
+  const namespace = result.preserved.filter((p) => p.reason === "namespace-import");
+  const nonTs = result.preserved.filter((p) => p.reason === "non-ts-import");
+  const dynamic = result.preserved.filter((p) => p.reason === "dynamic-import");
+  const starReExports = result.preserved.filter((p) => p.reason === "star-reexport");
+  const untraceableBarrels = result.preserved.filter((p) => p.reason === "untraceable-import");
+  const barrelReExports = result.preserved.filter((p) => p.reason === "barrel-reexport");
+  const failedBarrels = result.preserved.filter((p) => p.reason === "consumer-error");
+
+  if (skipped.length > 0) {
+    console.error(
+      `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (via --skip, tsconfig#files, or package.json#exports):`,
+    );
+    for (const { path } of skipped) {
+      console.error(`  ${rel(path)}`);
+    }
+  }
+
+  if (namespace.length > 0) {
+    const hint = args.unsafeNamespace ? "" : ", use --unsafe-namespace to rewrite";
+    console.error(
+      `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (has namespace imports${hint}):`,
+    );
+    for (const { path, consumers } of namespace) {
+      console.error(`  ${rel(path)}`);
+      for (const consumer of consumers ?? []) {
+        console.error(`    └─ ${rel(consumer)}`);
+      }
+    }
+  }
+
+  if (nonTs.length > 0) {
+    console.error(
+      `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (imports rewritten except for non-JS/TS files):`,
+    );
+    for (const { path, consumers } of nonTs) {
+      console.error(`  ${rel(path)}`);
+      for (const consumer of consumers ?? []) {
+        console.error(`    └─ ${rel(consumer)}`);
+      }
+    }
+  }
+
+  if (dynamic.length > 0) {
+    console.error(
+      `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (rewiring dynamic imports is not supported):`,
+    );
+    for (const { path, consumers } of dynamic) {
+      console.error(`  ${rel(path)}`);
+      if (consumers) {
+        for (const consumer of consumers) {
+          console.error(`    └─ ${rel(consumer)}`);
+        }
+      }
+    }
+  }
+
+  if (starReExports.length > 0) {
+    console.error(
+      `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (has curated star re-exports that cannot be flattened safely):`,
+    );
+    for (const { path, consumers } of starReExports) {
+      console.error(`  ${rel(path)}`);
+      for (const consumer of consumers ?? []) {
+        console.error(`    └─ ${rel(consumer)}`);
+      }
+    }
+  }
+
+  if (untraceableBarrels.length > 0) {
+    console.error(
+      `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (has untraceable imports, listed below):`,
+    );
+    for (const { path, consumers } of untraceableBarrels) {
+      console.error(`  ${rel(path)}`);
+      for (const consumer of consumers ?? []) {
+        console.error(`    └─ ${rel(consumer)}`);
+      }
+    }
+  }
+
+  if (barrelReExports.length > 0) {
+    console.error(
+      `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (re-exported by preserved barrel files):`,
+    );
+    for (const { path, consumers } of barrelReExports) {
+      console.error(`  ${rel(path)}`);
+      for (const consumer of consumers ?? []) {
+        console.error(`    └─ ${rel(consumer)}`);
+      }
+    }
+  }
+
+  if (failedBarrels.length > 0) {
+    console.error(
+      `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (consumers could not be processed, see errors above):`,
+    );
+    for (const { path, consumers } of failedBarrels) {
+      console.error(`  ${rel(path)}`);
+      for (const consumer of consumers ?? []) {
+        console.error(`    └─ ${rel(consumer)}`);
+      }
+    }
+  }
+
+  if (result.untraceableImports.length > 0) {
+    console.error(`\n${styleText("yellow", "⚠")} Untraceable imports (export not found in barrel or source file):`);
+    const grouped = new Map<string, Map<string, string[]>>();
+    for (const { barrelPath, consumerPath, name } of result.untraceableImports) {
+      let byBarrel = grouped.get(barrelPath);
+      if (!byBarrel) {
+        byBarrel = new Map();
+        grouped.set(barrelPath, byBarrel);
+      }
+      let names = byBarrel.get(consumerPath);
+      if (!names) {
+        names = [];
+        byBarrel.set(consumerPath, names);
+      }
+      names.push(name);
+    }
+    for (const [barrelPath, consumers] of grouped) {
+      console.error(`  ${rel(barrelPath)}`);
+      for (const [consumerPath, names] of consumers) {
+        console.error(`    └─ ${rel(consumerPath)}: ${names.join(", ")}`);
+      }
+    }
+  }
+
+  if (result.exampleDiff && (!options.write || args.check)) {
+    console.log(`\n${styleText("cyan", "ℹ")} Largest rewire diff:`);
+    console.log(result.exampleDiff);
+  }
+
+  console.log(`\n${styleText("green", "✔")} Summary:`);
+  console.log(`  Modified ${result.modified.length} file(s)`);
+  console.log(`  Deleted ${result.deleted.length} barrel file(s)`);
+
+  if (args.check && (result.modified.length > 0 || result.deleted.length > 0)) {
+    console.error(`\n${styleText("red", "✖")} Check failed: changes would be made.`);
+  }
+
+  if (!options.write && !args.check && (result.modified.length > 0 || result.deleted.length > 0)) {
+    console.error(`\n${styleText("cyan", "ℹ")} Run with --write to apply these changes.`);
+  }
+
+  if (args.check && (result.modified.length > 0 || result.deleted.length > 0)) {
     process.exit(1);
   }
 }

@@ -171,15 +171,15 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
 
     ctx.progress({ type: "scanning", current: i + 1, total });
 
+    const analysis = await analyzeFile(filePath, ctx);
+    if (!analysis.sourceFile) continue;
+
+    if (ctx.only.length === 0) {
+      await discoverBarrels(analysis, filePath, ctx);
+    }
+    trackBarrelConsumers(analysis, filePath, ctx);
+
     try {
-      const analysis = await analyzeFile(filePath, ctx);
-      if (!analysis.sourceFile) continue;
-
-      if (ctx.only.length === 0) {
-        await discoverBarrels(analysis, filePath, ctx);
-      }
-      trackBarrelConsumers(analysis, filePath, ctx);
-
       const rewrites = await buildRewrites(analysis, filePath, ctx);
       if (rewrites.size === 0) continue;
 
@@ -341,28 +341,24 @@ async function trackNonTsConsumers(ctx: Context): Promise<void> {
   });
 
   for (const nonTsFile of nonTsFiles) {
-    try {
-      const content = await readFile(nonTsFile, "utf-8");
+    const content = await readFile(nonTsFile, "utf-8");
 
-      for (const match of content.matchAll(IMPORT_PATTERN)) {
-        const rawSpecifier = match[1];
-        const { path: specifier } = parseSpecifier(rawSpecifier);
+    for (const match of content.matchAll(IMPORT_PATTERN)) {
+      const rawSpecifier = match[1];
+      const { path: specifier } = parseSpecifier(rawSpecifier);
 
-        const resolved = resolveModule(nonTsFile, specifier, ctx.aliases);
-        if (!resolved || !resolved.startsWith(ctx.base)) continue;
+      const resolved = resolveModule(nonTsFile, specifier, ctx.aliases);
+      if (!resolved || !resolved.startsWith(ctx.base)) continue;
 
-        if (ctx.tracker.has(resolved)) {
+      if (ctx.tracker.has(resolved)) {
+        ctx.tracker.addConsumer(resolved, nonTsFile);
+      } else if (ctx.only.length === 0) {
+        const analysis = await analyzeFile(resolved, ctx);
+        if (isBarrel(resolved, analysis, ctx)) {
+          ctx.tracker.register(resolved);
           ctx.tracker.addConsumer(resolved, nonTsFile);
-        } else if (ctx.only.length === 0) {
-          const analysis = await analyzeFile(resolved, ctx);
-          if (isBarrel(resolved, analysis, ctx)) {
-            ctx.tracker.register(resolved);
-            ctx.tracker.addConsumer(resolved, nonTsFile);
-          }
         }
       }
-    } catch {
-      // Ignore read errors
     }
   }
 }
