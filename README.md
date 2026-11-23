@@ -141,7 +141,14 @@ interface Result {
 
 interface PreservedBarrel {
   path: string;
-  reason: "skip" | "namespace-import" | "non-ts-import" | "dynamic-import";
+  reason:
+    | "skip"
+    | "namespace-import"
+    | "non-ts-import"
+    | "dynamic-import"
+    | "star-reexport"
+    | "untraceable-import"
+    | "barrel-reexport";
   consumers: string[];
 }
 ```
@@ -184,6 +191,8 @@ This prevents barrel files from getting deleted:
 - Dynamic import calls are not modified, so the imported barrel file is not deleted (e.g. `import("barrel.ts")`).
 - Non-JS/TS files are not modified, so the imported barrel file is not deleted (e.g. `*.mdx`).
 - Namespace imports are not modified, use `--unsafe-namespace` to rewrite (e.g. `import * as NS from "barrel"`).
+- Imports with names that cannot be traced are not modified, so the imported barrel file is not deleted.
+- Barrel files re-exported by a preserved barrel file are not deleted.
 
 The output in CLI prints "Preserved barrel files" with details.
 

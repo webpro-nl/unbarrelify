@@ -60,10 +60,26 @@ console.log(saved, bar);
       "consumer.ts",
     );
 
-    assert.equal((result.match(/from "\.\/value\.ts"/g) || []).length, 1);
-    assert.ok(result.includes('import { bar, foo } from "./value.ts";'));
-    assert.ok(result.endsWith("foo(bar);\n"));
+    assert.equal(result, 'import { bar, foo } from "./value.ts";\nfoo(bar);\n');
   });
+
+  test("keeps existing blank lines and CRLF when merging adjacent imports", () => {
+    const content = 'import { foo } from "./value.ts";\r\n\r\nimport { bar } from "./value.ts";\r\n\r\nfoo(bar);\r\n';
+    assert.equal(
+      organizeImports(content, "consumer.ts"),
+      'import { bar, foo } from "./value.ts";\r\n\r\n\r\nfoo(bar);\r\n',
+    );
+  });
+
+  for (const duplicate of [
+    '// eslint-disable-next-line\nimport { bar } from "./value.ts";',
+    'import { bar } from "./value.ts"; // Keep with the import',
+  ]) {
+    test("preserves comments on a later duplicate import", () => {
+      const content = ['import { foo } from "./value.ts";', duplicate, "foo(bar);", ""].join("\n");
+      assert.equal(organizeImports(content, "consumer.ts"), content);
+    });
+  }
 
   test("leaves content without duplicate imports byte for byte unchanged", () => {
     const content = `#!/usr/bin/env node\r\n"use client";\r\n// Header\r\nimport { foo } from './foo.ts';\r\nexport const saved = foo;\r\nimport './effect.ts';\r\n`;

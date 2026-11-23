@@ -33,13 +33,9 @@ export function organizeImports(content: string, filePath: string): string {
   const edits: { start: number; end: number; text: string }[] = [];
   for (const group of groups) {
     if (group.length < 2) continue;
-    if (
-      group.some((imp) =>
-        /@ts-(?:expect-error|ignore)\b/.test(content.slice(imp.getFullStart(), imp.getStart(sourceFile))),
-      )
-    ) {
-      continue;
-    }
+    const hasOwnComments = (imp: ts.ImportDeclaration) =>
+      ts.getLeadingCommentRanges(content, imp.getFullStart()) || ts.getTrailingCommentRanges(content, imp.end);
+    if (group.slice(1).some(hasOwnComments)) continue;
     const organized: string[] = [];
     // @ts-expect-error testCoalesceImports internal fn
     for (const imp of ts.OrganizeImports.testCoalesceImports(group, false, sourceFile, {})) {
@@ -48,7 +44,16 @@ export function organizeImports(content: string, filePath: string): string {
       organized.push(printNode(imp, sourceFile));
     }
     for (const [index, imp] of group.entries()) {
-      edits.push({ start: imp.getStart(sourceFile), end: imp.end, text: index === 0 ? organized.join("\n") : "" });
+      const start = imp.getStart(sourceFile);
+      const lineStart = content.lastIndexOf("\n", start - 1) + 1;
+      const lineEnd = content.indexOf("\n", imp.end);
+      const ownLine = !content.slice(lineStart, start).trim() && !content.slice(imp.end, lineEnd).trim();
+      if (index > 0 && lineEnd !== -1 && ownLine) {
+        edits.push({ start: lineStart, end: lineEnd + 1, text: "" });
+      } else {
+        const eol = /\r\n/.test(content) ? "\r\n" : "\n";
+        edits.push({ start, end: imp.end, text: index === 0 ? organized.join(eol) : "" });
+      }
     }
   }
 
