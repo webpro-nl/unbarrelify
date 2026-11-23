@@ -153,6 +153,23 @@ function addRewrite(
   return true;
 }
 
+// The names behind `export *` from a package are unknown, so such an export is used only when
+// nothing else exports the name and it is the only candidate.
+type PackageStars = Map<string, () => boolean>;
+
+async function traceName(
+  name: Name,
+  importItem: ImportData,
+  exports: ExportMap | undefined,
+  rewrites: Rewrites,
+  ctx: Context,
+  added: Set<string>,
+): Promise<boolean> {
+  const packageStars: PackageStars = new Map();
+  if (await traceExport(name, importItem, exports, rewrites, ctx, added, new Set(), packageStars)) return true;
+  return packageStars.size === 1 && [...packageStars.values()][0]();
+}
+
 async function traceExport(
   name: Name,
   importItem: ImportData,
@@ -160,7 +177,8 @@ async function traceExport(
   rewrites: Rewrites,
   ctx: Context,
   added: Set<string>,
-  visited: Set<string> = new Set(),
+  visited: Set<string>,
+  packageStars: PackageStars,
 ): Promise<boolean> {
   if (!exports) return false;
 
@@ -168,20 +186,12 @@ async function traceExport(
     const isExported = isNameExported(name, exportItem);
     if (!isExported && !exportItem.exportStar) continue;
 
-    if (!isAbsolute(targetFilePath)) {
-      if (exportItem.exportedNames.size === 0 || exportItem.exportedNames.has(name.name)) {
-        if (addRewrite(name, importItem, exportItem, targetFilePath, rewrites, added)) {
-          return true;
-        }
-      }
-      continue;
-    }
-
-    if (exportItem.externalSpecifier) {
-      if (exportItem.exportedNames.size === 0 || exportItem.exportedNames.has(name.name)) {
-        if (addRewrite(name, importItem, exportItem, exportItem.externalSpecifier, rewrites, added)) {
-          return true;
-        }
+    const external = isAbsolute(targetFilePath) ? exportItem.externalSpecifier : targetFilePath;
+    if (external) {
+      if (exportItem.exportedNames.has(name.name) || exportItem.reExportedNs === name.name) {
+        if (addRewrite(name, importItem, exportItem, external, rewrites, added)) return true;
+      } else if (exportItem.exportStar && exportItem.exportedNames.size === 0) {
+        packageStars.set(external, () => addRewrite(name, importItem, exportItem, external, rewrites, added));
       }
       continue;
     }
@@ -216,7 +226,16 @@ async function traceExport(
     const visitKey = `${targetFilePath}:${effectiveName.name}:${effectiveName.alias ?? ""}`;
     if (visited.has(visitKey)) continue;
     visited.add(visitKey);
-    const found = await traceExport(effectiveName, importItem, targetFile.exports, rewrites, ctx, added, visited);
+    const found = await traceExport(
+      effectiveName,
+      importItem,
+      targetFile.exports,
+      rewrites,
+      ctx,
+      added,
+      visited,
+      packageStars,
+    );
     if (found) return true;
   }
 
@@ -248,7 +267,7 @@ export async function buildRewrites(analysis: File, filePath: string, ctx: Conte
       if (!item) continue;
 
       for (const name of item.names ?? []) {
-        const found = await traceExport(name, item, importedFile.exports, rewrites, ctx, added);
+        const found = await traceName(name, item, importedFile.exports, rewrites, ctx, added);
         if (!found) {
           untraceable.add(`${item.pos.start}:${item.pos.end}`);
           ctx.tracker.untraceableImports.push({
@@ -260,11 +279,11 @@ export async function buildRewrites(analysis: File, filePath: string, ctx: Conte
       }
 
       for (const member of item.members ?? []) {
-        await traceExport(member, item, importedFile.exports, rewrites, ctx, added);
+        await traceName(member, item, importedFile.exports, rewrites, ctx, added);
       }
 
       if (item.type === "default") {
-        const found = await traceExport({ name: "default" }, item, importedFile.exports, rewrites, ctx, added);
+        const found = await traceName({ name: "default" }, item, importedFile.exports, rewrites, ctx, added);
         if (!found) {
           untraceable.add(`${item.pos.start}:${item.pos.end}`);
           ctx.tracker.untraceableImports.push({

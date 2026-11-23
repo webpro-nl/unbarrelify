@@ -513,6 +513,60 @@ describe("rewriter", () => {
       assert.match(applyRewrites(analysis.sourceFile!, rewrites, consumerPath), /b as value/);
     });
 
+    it("prefers a local export over an earlier package star re-export", async () => {
+      const tempDir = await createTempDir();
+      const ctx = createTestContext();
+
+      try {
+        const leafPath = join(tempDir, "leaf.ts");
+        await writeFile(leafPath, `export const foo = 1;`);
+
+        const barrelPath = join(tempDir, "index.ts");
+        await writeFile(barrelPath, `export * from 'node:path';\nexport { foo } from './leaf';`);
+
+        const consumerPath = join(tempDir, "consumer.ts");
+        await writeFile(consumerPath, `import { foo, join as joinPath } from './index';`);
+
+        const analysis = await analyzeFile(consumerPath, ctx);
+        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
+
+        const targets = [...rewrites.values()].flatMap((posRewrites) =>
+          [...posRewrites].map(([target, rewrite]) => [target, rewrite.named.map((item) => item.name)]),
+        );
+        assert.deepEqual(targets, [
+          [leafPath, ["foo"]],
+          ["node:path", ["join"]],
+        ]);
+        assert.equal(ctx.tracker.untraceableImports.length, 0);
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    it("leaves a name untraceable when several package star re-exports could own it", async () => {
+      const tempDir = await createTempDir();
+      const ctx = createTestContext();
+
+      try {
+        const barrelPath = join(tempDir, "index.ts");
+        await writeFile(barrelPath, `export * from 'node:path';\nexport * from 'node:os';`);
+
+        const consumerPath = join(tempDir, "consumer.ts");
+        await writeFile(consumerPath, `import { homedir } from './index';`);
+
+        const analysis = await analyzeFile(consumerPath, ctx);
+        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
+
+        assert.equal(rewrites.size, 0);
+        assert.deepEqual(
+          ctx.tracker.untraceableImports.map((item) => item.name),
+          ["homedir"],
+        );
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    });
+
     it("handles aliased imports", async () => {
       const tempDir = await createTempDir();
       const ctx = createTestContext();
