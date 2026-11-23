@@ -1535,4 +1535,21 @@ describe("unbarrelify integration tests", () => {
       });
     }
   });
+
+  describe("chained-barrels fixture with only the inner barrel selected", () => {
+    test("reports the unselected outer barrel as a barrel re-export", async (t) => {
+      const fixtureDir = await copyFixture(t, "chained-barrels");
+
+      const result = await unbarrelify({ cwd: fixtureDir, files: ["**/*.ts"], only: ["sub/index.ts"], write: true });
+
+      assert.deepEqual(result.deleted, []);
+      assert.deepEqual(result.preserved, [
+        {
+          path: join(fixtureDir, "sub/index.ts"),
+          reason: "barrel-reexport",
+          consumers: [join(fixtureDir, "index.ts")],
+        },
+      ]);
+    });
+  });
 });

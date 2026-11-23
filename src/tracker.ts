@@ -135,7 +135,7 @@ export class BarrelTracker {
         untracedConsumers.push(consumer);
         continue;
       }
-      if (this.barrels.has(consumer)) {
+      if (this.barrels.has(consumer) || ctx.fileCache.get(consumer)?.isBarrel || ctx.includedBarrels.has(consumer)) {
         barrelConsumers.push(consumer);
         continue;
       }
