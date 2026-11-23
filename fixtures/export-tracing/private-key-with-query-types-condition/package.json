@@ -1,0 +1,9 @@
+{
+  "type": "module",
+  "imports": {
+    "#lib?mode": {
+      "types": "./type-view.mts",
+      "import": "./selected.mjs"
+    }
+  }
+}

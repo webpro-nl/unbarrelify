@@ -1,0 +1,6 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "paths": { "shared-kit/leaf": ["./producer/real.mjs"] }
+  }
+}

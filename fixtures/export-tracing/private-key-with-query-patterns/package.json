@@ -1,0 +1,12 @@
+{
+  "type": "module",
+  "imports": {
+    "#lib?*": "./generic.mjs",
+    "#lib?mo*": "./mid.mjs",
+    "#lib?mo*x": "./trailer.mjs",
+    "#other?*e": "./generic.mjs",
+    "#lib?mod*de": "./generic.mjs",
+    "#lib?mo*e": "./special-*.mjs",
+    "#li*": "./generic.mjs"
+  }
+}

@@ -225,6 +225,27 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { first } from "@lib/names.ts";'],
     deleted: ["index.ts"],
   },
+  "private-key-with-query-source-beside": {
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: ["selected.mjs"],
+  },
+  "private-key-with-query-types-condition": {
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: ["selected.mjs"],
+  },
+  "bare-star-absent-in-consumer": {
+    consumer: "app/consumer.mjs",
+    rewritten: ['import { value } from "../producer/real.mjs";'],
+    deleted: ["producer/barrel.mjs"],
+  },
+  "private-key-with-query-patterns": {
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: ["special-d.mjs"],
+  },
+  "private-key-with-query-dependency": {
+    rewritten: ['import { sep } from "#lib?mode";'],
+    deleted: [],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {

@@ -1,16 +1,17 @@
-import { basename, dirname, extname, isAbsolute, relative } from "node:path";
-import { realpathSync } from "node:fs";
+import { basename, dirname, extname, isAbsolute, join, relative } from "node:path";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { ResolverFactory } from "oxc-resolver";
-import ts from "typescript";
 import type { NapiResolveOptions } from "oxc-resolver";
 import { getExtensionFromSpecifier, tryMapToAlias } from "./config.ts";
 import type { PathAliases, Rewrite } from "./types.ts";
 import { JS_EXT_PATTERN, MODULE_FORMAT_EXTENSIONS, RESOLVER_EXTENSIONS, TS_EXTENSIONS } from "./constants.ts";
 
+const conditionNames = ["import", "require", "node", "default"];
+
 const resolverOptions: NapiResolveOptions = {
   tsconfig: "auto",
   extensions: RESOLVER_EXTENSIONS as unknown as string[],
-  conditionNames: ["import", "require", "node", "default"],
+  conditionNames,
   extensionAlias: {
     ".js": [".js", ".ts", ".tsx"],
     ".jsx": [".jsx", ".tsx"],
@@ -42,27 +43,66 @@ function stripQueryString(specifier: string): string {
   return queryIndex === -1 ? specifier : specifier.slice(0, queryIndex);
 }
 
-// Node's own lookup, from TypeScript: package.json only, no tsconfig paths. Declaration files are hidden so it
-// returns the module.
-const nodeResolution: ts.CompilerOptions = {
-  allowJs: true,
-  module: ts.ModuleKind.NodeNext,
-  moduleResolution: ts.ModuleResolutionKind.NodeNext,
-};
-const moduleFiles: ts.ModuleResolutionHost = {
-  ...ts.sys,
-  fileExists: (path) => !/\.d\.[cm]?ts$/.test(path) && ts.sys.fileExists(path),
-};
+// Node matches a package-private key as written, `?` and `#` included, while oxc-resolver splits those off
+// first. A key that contains one is matched against the importer's package.json here, with Node's rules for
+// exact keys, patterns and conditions; the resolver then resolves the target like any other file.
+function findImportEntry(
+  imports: Record<string, unknown>,
+  key: string,
+): { target: unknown; match: string } | undefined {
+  if (Object.hasOwn(imports, key)) return { target: imports[key], match: "" };
 
-function resolveLikeNode(fromPath: string, specifier: string): string | undefined {
-  const mode = ts.ModuleKind.ESNext;
-  return ts.resolveModuleName(specifier, fromPath, nodeResolution, moduleFiles, undefined, undefined, mode)
-    .resolvedModule?.resolvedFileName;
+  // Node takes the pattern with the longest part before `*`, then the longest pattern.
+  let best: { pattern: string; star: number } | undefined;
+  for (const pattern of Object.keys(imports)) {
+    const star = pattern.indexOf("*");
+    if (star < 0 || key.length < pattern.length) continue;
+    if (!key.startsWith(pattern.slice(0, star)) || !key.endsWith(pattern.slice(star + 1))) continue;
+    if (!best || star > best.star || (star === best.star && pattern.length > best.pattern.length)) {
+      best = { pattern, star };
+    }
+  }
+  if (!best) return undefined;
+
+  const trailer = best.pattern.length - best.star - 1;
+  return { target: imports[best.pattern], match: key.slice(best.star, key.length - trailer) };
 }
 
-// Node matches a package-private key as written, `?` and `#` included, while oxc-resolver splits those off first.
+function selectTarget(target: unknown, match: string): string | undefined {
+  if (typeof target === "string") return target.replaceAll("*", match);
+  if (!target || typeof target !== "object") return undefined;
+
+  const candidates = Array.isArray(target)
+    ? target
+    : Object.entries(target).flatMap(([condition, value]) => (conditionNames.includes(condition) ? [value] : []));
+  for (const candidate of candidates) {
+    const selected = selectTarget(candidate, match);
+    if (selected) return selected;
+  }
+  return undefined;
+}
+
+function readImports(packageJsonPath: string): Record<string, unknown> {
+  try {
+    return JSON.parse(readFileSync(packageJsonPath, "utf-8")).imports ?? {};
+  } catch {
+    return {};
+  }
+}
+
 function resolvePackageImportKey(fromPath: string, key: string): string | undefined {
-  return /^#.*[?#]/.test(key) ? resolveLikeNode(fromPath, key) : undefined;
+  if (!/^#.*[?#]/.test(key)) return undefined;
+
+  for (let dir = dirname(fromPath); ; dir = dirname(dir)) {
+    const packageJsonPath = join(dir, "package.json");
+    if (existsSync(packageJsonPath)) {
+      const entry = findImportEntry(readImports(packageJsonPath), key);
+      if (!entry) return undefined;
+      const target = selectTarget(entry.target, entry.match);
+      return (target && resolver.resolveFileSync(packageJsonPath, target).path) || key;
+    }
+    if (dir === dirname(dir)) return undefined;
+  }
 }
 
 export function isPackageImportKey(fromPath: string, key: string): boolean {
@@ -191,12 +231,16 @@ export function buildRewriteSpecifier(
   return (rewrite.specifierPrefix ?? "") + base + (rewrite.specifierSuffix ?? "");
 }
 
-// A bare specifier for a local file is kept only where it resolves to that file from the consumer, and Node,
-// which ignores tsconfig paths, does not find another file for it.
+// Node looks a package up without tsconfig paths.
+const nodeResolver = new ResolverFactory({ ...resolverOptions, tsconfig: undefined });
+
+// A bare specifier for a local file is kept only where it resolves to that file from the consumer. Where Node
+// knows the specifier as a package, from the consumer or from the file itself, tsconfig paths are not enough:
+// Node has to find the same file for the consumer.
 function namesFile(from: string, specifier: string, to: string, aliases: PathAliases | null): boolean {
   if (resolveModule(from, specifier, aliases) !== to) return false;
-  const nodeTarget = resolveLikeNode(from, specifier);
-  return nodeTarget === undefined || nodeTarget === to;
+  const nodeTarget = nodeResolver.resolveFileSync(from, specifier).path;
+  return nodeTarget ? nodeTarget === to : nodeResolver.resolveFileSync(to, specifier).path !== to;
 }
 
 function inferAliasSpecifier(originalSpecifier: string, targetPath: string): string | null {
