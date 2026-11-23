@@ -2,7 +2,7 @@ import { basename, dirname, extname, isAbsolute, join, relative } from "node:pat
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
-import { getExtensionFromSpecifier, tryMapToAlias } from "./config.ts";
+import { aliasNamesFile, getExtensionFromSpecifier, tryMapToAlias } from "./config.ts";
 import type { PathAliases, Rewrite } from "./types.ts";
 import {
   JS_EXT_PATTERN,
@@ -192,7 +192,7 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     const aliasSpecifier = tryMapToAlias(to, aliases, originalSpecifier);
     if (aliasSpecifier) {
       const detectedExt = ext !== undefined ? ext : getExtensionFromSpecifier(originalSpecifier);
-      for (const specifier of aliasCandidates(aliasSpecifier, to, detectedExt)) {
+      for (const specifier of aliasCandidates(aliasSpecifier, to, detectedExt, aliases)) {
         if (resolveModule(from, specifier, aliases) === to) return specifier;
       }
     }
@@ -202,7 +202,7 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     const aliasSpecifier = inferAliasSpecifier(originalSpecifier, to);
     if (aliasSpecifier) {
       const detectedExt = ext !== undefined ? ext : getExtensionFromSpecifier(originalSpecifier);
-      for (const specifier of aliasCandidates(aliasSpecifier, to, detectedExt)) {
+      for (const specifier of aliasCandidates(aliasSpecifier, to, detectedExt, aliases)) {
         if (resolveModule(from, specifier, aliases ?? null) === to) return specifier;
       }
     }
@@ -237,10 +237,17 @@ function specifierExtension(target: string, style: string | null): string | null
   return style === ".jsx" && JSX_EXTENSIONS.has(targetExt) ? ".jsx" : ".js";
 }
 
-// An exact alias names the file itself and accepts no extension.
-function aliasCandidates(aliasSpecifier: string, to: string, style: string | null): string[] {
+function aliasCandidates(
+  aliasSpecifier: string,
+  to: string,
+  style: string | null,
+  aliases: PathAliases | null | undefined,
+): string[] {
   const ext = specifierExtension(to, style);
-  return ext ? [aliasSpecifier + ext, aliasSpecifier] : [aliasSpecifier];
+  if (!ext) return [aliasSpecifier];
+  // Without the extension, the alias is valid only where its mapping names the file; elsewhere it relies on extension probing.
+  const namesFile = aliases ? aliasNamesFile(aliasSpecifier, aliases, to) : false;
+  return namesFile ? [aliasSpecifier + ext, aliasSpecifier] : [aliasSpecifier + ext];
 }
 
 export function buildRewriteSpecifier(

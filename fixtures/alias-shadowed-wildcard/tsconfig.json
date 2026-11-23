@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
+    "types": [],
+    "paths": { "@lib/*": ["./src/*"], "@lib/leaf.js": ["./src/decoy.ts"] }
+  }
+}

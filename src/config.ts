@@ -130,6 +130,19 @@ export function tryMapToAlias(absolutePath: string, aliases: PathAliases, origin
   return null;
 }
 
+export function aliasNamesFile(specifier: string, aliases: PathAliases, filePath: string): boolean {
+  if (Object.hasOwn(aliases.paths, specifier)) return true;
+  let best: string | undefined;
+  for (const pattern of Object.keys(aliases.paths)) {
+    if (!pattern.includes("*") || !matchesPathPattern(pattern, specifier)) continue;
+    if (!best || pattern.indexOf("*") > best.indexOf("*")) best = pattern;
+  }
+  if (!best) return false;
+  const star = best.indexOf("*");
+  const captured = specifier.slice(star, specifier.length - (best.length - star - 1));
+  return aliases.paths[best].some((target) => join(aliases.baseUrl, target.replace("*", captured)) === filePath);
+}
+
 function matchesPathPattern(pattern: string, specifier: string): boolean {
   const star = pattern.indexOf("*");
   if (star === -1) return pattern === specifier;

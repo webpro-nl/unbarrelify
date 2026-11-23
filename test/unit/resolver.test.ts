@@ -154,5 +154,15 @@ describe("resolver", () => {
       assert.equal(build("@/index.mjs", "value.ts"), "@/value.js");
       assert.equal(build("@/index.ts", "Button.tsx"), "@/Button.tsx");
     });
+
+    test("does not drop the extension of a wildcard alias that another alias shadows", () => {
+      const dir = fixture("alias-shadowed-wildcard");
+      const { aliases } = initProjectConfig(dir);
+      const specifier = buildSpecifier(join(dir, "consumer.ts"), join(dir, "src/leaf.ts"), {
+        originalSpecifier: "@lib/barrel.js",
+        aliases,
+      });
+      assert.equal(specifier, "./src/leaf.js");
+    });
   });
 });
