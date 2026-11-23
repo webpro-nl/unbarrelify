@@ -71,6 +71,12 @@ console.log(saved, bar);
     );
   });
 
+  test("keeps CRLF between coalesced declarations", () => {
+    const content =
+      'import { foo } from "./value.ts";\r\nimport type { Value } from "./value.ts";\r\nconst saved: Value = foo;\r\n';
+    assert.equal(organizeImports(content, "consumer.ts"), content);
+  });
+
   for (const duplicate of [
     '// eslint-disable-next-line\nimport { bar } from "./value.ts";',
     'import { bar } from "./value.ts"; // Keep with the import',
