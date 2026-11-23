@@ -3,22 +3,26 @@ import { printNode } from "./printer.ts";
 
 export function organizeImports(content: string, filePath: string): string {
   const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest);
-  const groups = new Map<string, ts.ImportDeclaration[]>();
-  let firstPos = -1;
-  let lastEnd = -1;
+  const groups: ts.ImportDeclaration[][] = [];
+  const adjacentGroups = new Map<string, ts.ImportDeclaration[]>();
 
   for (const stmt of sourceFile.statements) {
-    if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteral(stmt.moduleSpecifier)) continue;
+    if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteral(stmt.moduleSpecifier)) {
+      adjacentGroups.clear();
+      continue;
+    }
     const specifier = stmt.moduleSpecifier.text;
-    const group = groups.get(specifier);
+    const group = adjacentGroups.get(specifier);
     if (group) group.push(stmt);
-    else groups.set(specifier, [stmt]);
-    if (firstPos === -1) firstPos = stmt.getFullStart();
-    lastEnd = stmt.end;
+    else {
+      const imports = [stmt];
+      adjacentGroups.set(specifier, imports);
+      groups.push(imports);
+    }
   }
 
   let needsOrganize = false;
-  for (const group of groups.values()) {
+  for (const group of groups) {
     if (group.length > 1) {
       needsOrganize = true;
       break;
@@ -26,16 +30,37 @@ export function organizeImports(content: string, filePath: string): string {
   }
   if (!needsOrganize) return content;
 
-  const organized: string[] = [];
-  for (const group of groups.values()) {
+  const edits: { start: number; end: number; text: string }[] = [];
+  for (const group of groups) {
+    if (group.length < 2) continue;
+    const hasOwnComments = (imp: ts.ImportDeclaration) =>
+      ts.getLeadingCommentRanges(content, imp.getFullStart()) || ts.getTrailingCommentRanges(content, imp.end);
+    if (group.slice(1).some(hasOwnComments)) continue;
+    const organized: string[] = [];
     // @ts-expect-error testCoalesceImports internal fn
     for (const imp of ts.OrganizeImports.testCoalesceImports(group, false, sourceFile, {})) {
+      // Leading and trailing comments remain outside the replacement ranges.
+      ts.setEmitFlags(imp, ts.EmitFlags.NoLeadingComments | ts.EmitFlags.NoTrailingComments);
       organized.push(printNode(imp, sourceFile));
+    }
+    for (const [index, imp] of group.entries()) {
+      const start = imp.getStart(sourceFile);
+      const lineStart = content.lastIndexOf("\n", start - 1) + 1;
+      const lineEnd = content.indexOf("\n", imp.end);
+      const ownLine = !content.slice(lineStart, start).trim() && !content.slice(imp.end, lineEnd).trim();
+      if (index > 0 && lineEnd !== -1 && ownLine) {
+        edits.push({ start: lineStart, end: lineEnd + 1, text: "" });
+      } else {
+        const eol = /\r\n/.test(content) ? "\r\n" : "\n";
+        edits.push({ start, end: imp.end, text: index === 0 ? organized.join(eol) : "" });
+      }
     }
   }
 
-  let endPos = lastEnd;
-  while (endPos < content.length && (content[endPos] === "\n" || content[endPos] === "\r")) endPos++;
+  // Only replace imports, leaving interleaved statements and trivia intact.
+  for (const { start, end, text } of edits.sort((a, b) => b.start - a.start)) {
+    content = content.slice(0, start) + text + content.slice(end);
+  }
 
-  return content.slice(0, firstPos) + organized.join("\n") + "\n" + content.slice(endPos);
+  return content;
 }
