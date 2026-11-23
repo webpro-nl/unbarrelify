@@ -108,10 +108,10 @@ export function tryMapToAlias(absolutePath: string, aliases: PathAliases, origin
   });
 
   for (const [pattern, targets] of sortedPatterns) {
-    const patternRegex = new RegExp(`^${pattern.replace(/\*/g, "(.*)")}$`);
-    const match = originalSpecifier.match(patternRegex);
-
-    if ((match || pattern === `${originalSpecifier}/*`) && targets.length > 0) {
+    if (
+      (matchesPathPattern(pattern, originalSpecifier) || pattern === `${originalSpecifier}/*`) &&
+      targets.length > 0
+    ) {
       const targetPattern = targets[0];
       const targetBase = targetPattern.replace(/\*.*$/, "");
       const resolvedTargetBase = join(aliases.baseUrl, targetBase);
@@ -128,4 +128,14 @@ export function tryMapToAlias(absolutePath: string, aliases: PathAliases, origin
   }
 
   return null;
+}
+
+function matchesPathPattern(pattern: string, specifier: string): boolean {
+  const star = pattern.indexOf("*");
+  if (star === -1) return pattern === specifier;
+  const prefix = pattern.slice(0, star);
+  const suffix = pattern.slice(star + 1);
+  return (
+    specifier.length >= prefix.length + suffix.length && specifier.startsWith(prefix) && specifier.endsWith(suffix)
+  );
 }

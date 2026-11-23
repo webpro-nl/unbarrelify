@@ -91,6 +91,15 @@ test("tryMapToAlias: handles multiple alias patterns", () => {
   assert.equal(result, "@utils/helpers");
 });
 
+test("tryMapToAlias: matches alias keys literally", () => {
+  const aliases: PathAliases = {
+    baseUrl: "/project",
+    paths: { "@literal/[": ["src/decoy.ts"], "@lib/*": ["src/*"], "@a.b/*": ["other/*"] },
+  };
+  assert.equal(tryMapToAlias("/project/src/leaf.ts", aliases, "@lib/barrel.js"), "@lib/leaf");
+  assert.equal(tryMapToAlias("/project/other/leaf.ts", aliases, "@axb/barrel"), null);
+});
+
 test("tryMapToAlias: returns null when path doesn't match alias target", () => {
   const aliases: PathAliases = {
     baseUrl: "/project",
