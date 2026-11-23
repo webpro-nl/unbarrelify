@@ -309,7 +309,8 @@ export async function buildRewrites(analysis: File, filePath: string, ctx: Conte
       }
 
       if (item.type === "default") {
-        const found = await traceName({ name: "default" }, item, importedFile.exports, rewrites, ctx, added);
+        const name = { name: "default", isType: item.isTypeOnly };
+        const found = await traceName(name, item, importedFile.exports, rewrites, ctx, added);
         if (!found) {
           unchanged.add(`${item.pos.start}:${item.pos.end}`);
           ctx.tracker.untraceableImports.push({

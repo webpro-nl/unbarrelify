@@ -343,6 +343,7 @@ function processImportDeclaration(
       name: clause.name.text,
       type: "default",
       pos,
+      isTypeOnly: clause.isTypeOnly,
       originalSpecifier: path,
       specifierPrefix,
       specifierSuffix,

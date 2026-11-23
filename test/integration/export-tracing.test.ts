@@ -111,6 +111,11 @@ const cases: Record<string, Expected> = {
     rewritten: ['import type { default as Token } from "./types.ts";'],
     deleted: ["barrel.ts"],
   },
+  "type-default-import": {
+    consumer: "consumer.ts",
+    rewritten: ['import type { default as Token } from "./types.ts";'],
+    deleted: ["barrel.ts"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {
