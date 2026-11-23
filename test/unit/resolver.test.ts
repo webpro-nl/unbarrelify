@@ -1,7 +1,9 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { resolveModule, ensureExtension, buildSpecifier } from "../../src/resolver.ts";
+import { initProjectConfig } from "../../src/config.ts";
 import { join } from "node:path";
+import { fixture } from "../helpers.ts";
 
 describe("resolver", () => {
   describe("resolveModule", () => {
@@ -125,6 +127,32 @@ describe("resolver", () => {
       assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.ts", options), "./b");
       assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.mts", options), "./b.mjs");
       assert.equal(buildSpecifier("/project/src/a.ts", "/project/src/b.cts", options), "./b.cjs");
+    });
+
+    test("writes the output extension of the target for other JavaScript extensions", () => {
+      const from = "/project/src/a.ts";
+      assert.equal(buildSpecifier(from, "/project/src/b.ts", { originalSpecifier: "./index.mjs" }), "./b.js");
+      assert.equal(buildSpecifier(from, "/project/src/b.tsx", { originalSpecifier: "./index.mjs" }), "./b.js");
+      assert.equal(buildSpecifier(from, "/project/src/b.mts", { originalSpecifier: "./index.mjs" }), "./b.mjs");
+      assert.equal(buildSpecifier(from, "/project/src/b.ts", { originalSpecifier: "./index.cjs" }), "./b.js");
+      assert.equal(buildSpecifier(from, "/project/src/b.cts", { originalSpecifier: "./index.cjs" }), "./b.cjs");
+      assert.equal(buildSpecifier(from, "/project/src/b.ts", { originalSpecifier: "./index.jsx" }), "./b.js");
+      assert.equal(buildSpecifier(from, "/project/src/b.tsx", { originalSpecifier: "./index.jsx" }), "./b.jsx");
+      assert.equal(buildSpecifier(from, "/project/src/b.ts", { ext: ".mjs" }), "./b.js");
+    });
+
+    test("applies the same extension rule to path aliases", () => {
+      const dir = fixture("alias-extensions");
+      const from = join(dir, "src/consumer.ts");
+      const { aliases } = initProjectConfig(dir);
+      const build = (originalSpecifier: string, target: string) =>
+        buildSpecifier(from, join(dir, "src", target), { originalSpecifier, aliases });
+      assert.equal(build("@/index", "value.ts"), "@/value");
+      assert.equal(build("@/index", "tool.mts"), "@/tool.mjs");
+      assert.equal(build("@/index.js", "value.ts"), "@/value.js");
+      assert.equal(build("@/index.js", "tool.mts"), "@/tool.mjs");
+      assert.equal(build("@/index.mjs", "value.ts"), "@/value.js");
+      assert.equal(build("@/index.ts", "Button.tsx"), "@/Button.tsx");
     });
   });
 });

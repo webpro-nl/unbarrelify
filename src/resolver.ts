@@ -4,7 +4,13 @@ import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
 import { getExtensionFromSpecifier, tryMapToAlias } from "./config.ts";
 import type { PathAliases, Rewrite } from "./types.ts";
-import { JS_EXT_PATTERN, MODULE_FORMAT_EXTENSIONS, RESOLVER_EXTENSIONS, TS_EXTENSIONS } from "./constants.ts";
+import {
+  JS_EXT_PATTERN,
+  JSX_EXTENSIONS,
+  MODULE_FORMAT_EXTENSIONS,
+  RESOLVER_EXTENSIONS,
+  TS_EXTENSIONS,
+} from "./constants.ts";
 
 const conditionNames = ["import", "require", "node", "default"];
 
@@ -186,8 +192,9 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     const aliasSpecifier = tryMapToAlias(to, aliases, originalSpecifier);
     if (aliasSpecifier) {
       const detectedExt = ext !== undefined ? ext : getExtensionFromSpecifier(originalSpecifier);
-      const specifier = detectedExt ? ensureExtension(aliasSpecifier, detectedExt) : aliasSpecifier;
-      if (resolveModule(from, specifier, aliases) === to) return specifier;
+      for (const specifier of aliasCandidates(aliasSpecifier, to, detectedExt)) {
+        if (resolveModule(from, specifier, aliases) === to) return specifier;
+      }
     }
   }
 
@@ -195,8 +202,9 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     const aliasSpecifier = inferAliasSpecifier(originalSpecifier, to);
     if (aliasSpecifier) {
       const detectedExt = ext !== undefined ? ext : getExtensionFromSpecifier(originalSpecifier);
-      const specifier = detectedExt ? ensureExtension(aliasSpecifier, detectedExt) : aliasSpecifier;
-      if (resolveModule(from, specifier, aliases ?? null) === to) return specifier;
+      for (const specifier of aliasCandidates(aliasSpecifier, to, detectedExt)) {
+        if (resolveModule(from, specifier, aliases ?? null) === to) return specifier;
+      }
     }
   }
 
@@ -214,12 +222,25 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     finalExt = extname(to) || null;
   }
 
-  const realTo =
-    finalExt && TS_EXTENSIONS.has(finalExt)
-      ? to
-      : ensureExtension(to, MODULE_FORMAT_EXTENSIONS.get(extname(to)) ?? finalExt);
+  const realTo = ensureExtension(to, specifierExtension(to, finalExt));
   const relPath = relative(realFromDir, realTo);
   return relPath.startsWith(".") ? relPath : `./${relPath}`;
+}
+
+function specifierExtension(target: string, style: string | null): string | null {
+  if (!JS_EXT_PATTERN.test(target)) return null;
+  const targetExt = extname(target);
+  if (style && TS_EXTENSIONS.has(style)) return targetExt;
+  const moduleFormat = MODULE_FORMAT_EXTENSIONS.get(targetExt);
+  if (moduleFormat) return moduleFormat;
+  if (!style) return null;
+  return style === ".jsx" && JSX_EXTENSIONS.has(targetExt) ? ".jsx" : ".js";
+}
+
+// An exact alias names the file itself and accepts no extension.
+function aliasCandidates(aliasSpecifier: string, to: string, style: string | null): string[] {
+  const ext = specifierExtension(to, style);
+  return ext ? [aliasSpecifier + ext, aliasSpecifier] : [aliasSpecifier];
 }
 
 export function buildRewriteSpecifier(

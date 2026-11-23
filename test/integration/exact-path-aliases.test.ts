@@ -109,7 +109,7 @@ for (const scenario of cases) {
       assert.deepEqual(result.deleted, [join(cwd, "src/utils/index.ts")]);
       assert.ok(!existsSync(join(cwd, "src/utils/index.ts")));
       const specifier = await checkConsumer(t, cwd, "after", "src/utils/value.ts");
-      assert.equal(specifier, scenario.relative ? `./src/utils/value${ext ?? ""}` : "@app/utils/value");
+      assert.equal(specifier, `${scenario.relative ? "./src/utils" : "@app/utils"}/value${ext ?? ""}`);
     });
   }
 }
