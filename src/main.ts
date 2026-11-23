@@ -216,8 +216,15 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
 
   const { deleted: deletable, preserved } = ctx.tracker.classify(ctx);
   const deleted: string[] = [];
+  const kept = new Set<string>();
 
   for (const barrelPath of deletable) {
+    const keptConsumers = ctx.tracker.consumersIn(barrelPath, kept);
+    if (keptConsumers.length > 0) {
+      kept.add(barrelPath);
+      preserved.push({ path: barrelPath, reason: "consumer-error", consumers: keptConsumers });
+      continue;
+    }
     if (ctx.write && !ctx.check) {
       try {
         await unlink(barrelPath);
@@ -225,6 +232,7 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
         const err = error instanceof Error ? error : new Error(String(error));
         console.error(`Error deleting ${barrelPath}:`, err.message);
         errors.push({ file: barrelPath, error: err });
+        kept.add(barrelPath);
         continue;
       }
     }

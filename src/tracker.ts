@@ -49,7 +49,6 @@ export class BarrelTracker {
   }
 
   classify(ctx: Context): { deleted: string[]; preserved: PreservedBarrel[] } {
-    const deleted: string[] = [];
     const preserved: PreservedBarrel[] = [];
     const toDelete = new Set<string>();
 
@@ -74,18 +73,20 @@ export class BarrelTracker {
     for (const [barrelPath, state] of this.barrels) {
       if (!barrelPath.startsWith(ctx.base + "/")) continue;
       if (isIgnoredPath(barrelPath, ctx.base)) continue;
+      if (toDelete.has(barrelPath)) continue;
 
-      if (toDelete.has(barrelPath)) {
-        deleted.push(barrelPath);
-      } else {
-        const reasons = this.getPreservationReasons(barrelPath, state, ctx, toDelete);
-        for (const { reason, consumers } of reasons) {
-          preserved.push({ path: barrelPath, reason, consumers });
-        }
+      for (const { reason, consumers } of this.getPreservationReasons(barrelPath, state, ctx, toDelete)) {
+        preserved.push({ path: barrelPath, reason, consumers });
       }
     }
 
-    return { deleted, preserved };
+    return { deleted: [...toDelete], preserved };
+  }
+
+  consumersIn(barrelPath: string, paths: Set<string>): string[] {
+    const state = this.barrels.get(barrelPath);
+    if (!state) return [];
+    return [...state.consumers].filter((consumer) => paths.has(consumer) && !state.rewrittenConsumers.has(consumer));
   }
 
   private getUnrewritten(state: BarrelState, toDelete: Set<string>): string[] {

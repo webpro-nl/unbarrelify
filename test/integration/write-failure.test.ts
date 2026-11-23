@@ -110,6 +110,68 @@ test("stops without deleting barrels when reading a re-export target fails", asy
   }
 });
 
+for (const only of [[], ["index.ts", "sub/index.ts"], ["sub/index.ts", "index.ts"]]) {
+  test(`keeps a barrel whose consumer barrel could not be deleted (only: ${JSON.stringify(only)})`, async (t) => {
+    const fixtureDir = await copyFixture(t, "chained-barrels");
+    const failing = join(fixtureDir, "index.ts");
+    const inner = join(fixtureDir, "sub/index.ts");
+    const originalUnlink = fs.unlink;
+    const unlinkError = Object.assign(new Error("simulated unlink failure"), { code: "EPERM" });
+    t.mock.method(console, "error", () => {});
+    t.mock.method(console, "log", () => {});
+    const unlinker = t.mock.method(fs, "unlink", async (...args: Parameters<typeof fs.unlink>) => {
+      if (args[0] === failing) throw unlinkError;
+      return originalUnlink(...args);
+    });
+    syncBuiltinESMExports();
+
+    try {
+      const result = await unbarrelify({ cwd: fixtureDir, files: ["**/*.ts"], only, write: true });
+
+      assert.deepEqual(result.deleted, []);
+      assert.ok(existsSync(inner), "the barrel that could not be deleted still re-exports this one");
+      assert.deepEqual(
+        result.errors.map(({ file }) => file),
+        [failing],
+      );
+      assert.deepEqual(result.preserved, [{ path: inner, reason: "consumer-error", consumers: [failing] }]);
+    } finally {
+      unlinker.mock.restore();
+      syncBuiltinESMExports();
+    }
+  });
+}
+
+test("deletes a barrel that a rewritten consumer barrel no longer needs when deleting that consumer fails", async (t) => {
+  const fixtureDir = await copyFixture(t, "forced-outer-barrel");
+  const failing = join(fixtureDir, "locked/outer.ts");
+  const originalUnlink = fs.unlink;
+  const unlinkError = Object.assign(new Error("simulated unlink failure"), { code: "EPERM" });
+  t.mock.method(console, "error", () => {});
+  t.mock.method(console, "log", () => {});
+  const unlinker = t.mock.method(fs, "unlink", async (...args: Parameters<typeof fs.unlink>) => {
+    if (args[0] === failing) throw unlinkError;
+    return originalUnlink(...args);
+  });
+  syncBuiltinESMExports();
+
+  try {
+    const options = { cwd: fixtureDir, files: ["**/*.ts"], barrel: ["locked/outer.ts"], write: true };
+    const result = await unbarrelify(options);
+
+    assert.deepEqual(result.deleted, [join(fixtureDir, "lib/inner.ts")]);
+    assert.deepEqual(
+      result.errors.map(({ file }) => file),
+      [failing],
+    );
+    assert.deepEqual(result.preserved, []);
+    assert.ok(!(await readFile(failing, "utf-8")).includes("inner.ts"));
+  } finally {
+    unlinker.mock.restore();
+    syncBuiltinESMExports();
+  }
+});
+
 test("does not report a barrel as deleted when deleting it fails", async (t) => {
   const fixtureDir = await copyFixture(t, "chained-barrels");
   const failing = join(fixtureDir, "sub/index.ts");
