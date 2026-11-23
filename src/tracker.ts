@@ -57,7 +57,7 @@ export class BarrelTracker {
       changed = false;
       for (const [barrelPath, state] of this.barrels) {
         if (toDelete.has(barrelPath)) continue;
-        if (!barrelPath.startsWith(ctx.base)) continue;
+        if (!barrelPath.startsWith(ctx.base + "/")) continue;
         if (isIgnoredPath(barrelPath, ctx.base)) continue;
         if (state.dynamicConsumers.size > 0) continue;
         if (ctx.preservedBarrels.has(barrelPath) || ctx.isPackageEntryPoint(barrelPath)) continue;
@@ -71,7 +71,7 @@ export class BarrelTracker {
     }
 
     for (const [barrelPath, state] of this.barrels) {
-      if (!barrelPath.startsWith(ctx.base)) continue;
+      if (!barrelPath.startsWith(ctx.base + "/")) continue;
       if (isIgnoredPath(barrelPath, ctx.base)) continue;
 
       if (toDelete.has(barrelPath)) {

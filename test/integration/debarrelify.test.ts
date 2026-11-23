@@ -1466,4 +1466,28 @@ describe("unbarrelify integration tests", () => {
       );
     });
   });
+
+  describe("sibling directory with the same prefix as cwd", () => {
+    test("does not delete a barrel from a sibling directory whose consumers were not scanned", async (t) => {
+      const root = await copyFixture(t, "sibling-prefix");
+      const siblingConsumer = join(root, "app-shared/other-consumer.ts");
+      const originalConsumer = await read(siblingConsumer);
+
+      const result = await unbarrelify({
+        cwd: join(root, "app"),
+        files: ["**/*.ts"],
+        skip: [],
+        write: true,
+      });
+
+      const siblingBarrel = join(root, "app-shared/internal/index.ts");
+      assert.ok(!result.deleted.includes(siblingBarrel));
+      assert.ok(existsSync(siblingBarrel));
+      assert.equal(await read(siblingConsumer), originalConsumer);
+
+      const insideBarrel = join(root, "app/inner/index.ts");
+      assert.ok(result.deleted.includes(insideBarrel));
+      assert.ok(!existsSync(insideBarrel));
+    });
+  });
 });
