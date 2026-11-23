@@ -32,6 +32,15 @@ export interface RewriteContext {
   singleQuote?: boolean;
 }
 
+// The spellings a rewrite may reuse: the barrel's own package-private key, and the style of its target
+// when the consumer reached the barrel through such a key.
+function packageSpecifiers(importItem: ImportData, exportItem: ExportData) {
+  return {
+    packageTargetSpecifier: importItem.originalSpecifier?.startsWith("#") ? exportItem.specifier : undefined,
+    packageImportSpecifier: exportItem.specifier.startsWith("#") ? exportItem.specifier : undefined,
+  };
+}
+
 export function buildRewriteItem(
   name: Name,
   importItem: ImportData,
@@ -53,8 +62,7 @@ export function buildRewriteItem(
     reExportedNs: isNamespace ? (name.alias ?? name.name) : undefined,
     defaultName: isDefault && !isNamedDefault ? localName : undefined,
     originalSpecifier: importItem.originalSpecifier,
-    packageTargetSpecifier: importItem.originalSpecifier?.startsWith("#") ? exportItem.specifier : undefined,
-    packageImportSpecifier: exportItem.specifier.startsWith("#") ? exportItem.specifier : undefined,
+    ...packageSpecifiers(importItem, exportItem),
     specifierPrefix: importItem.specifierPrefix,
     specifierSuffix: importItem.specifierSuffix,
   };
@@ -399,7 +407,7 @@ async function buildUnsafeNamespaceRewrites(
         members: [],
         unsafeNsName: item.name,
         originalSpecifier: item.originalSpecifier,
-        packageImportSpecifier: exportData.specifier.startsWith("#") ? exportData.specifier : undefined,
+        ...packageSpecifiers(item, exportData),
         specifierPrefix: item.specifierPrefix,
         specifierSuffix: item.specifierSuffix,
       });
@@ -492,7 +500,7 @@ async function traceStarExports(
           members: [],
           isTypeOnly,
           originalSpecifier: item.originalSpecifier,
-          packageImportSpecifier: exportData.specifier.startsWith("#") ? exportData.specifier : undefined,
+          ...packageSpecifiers(item, exportData),
           specifierPrefix: item.specifierPrefix,
           specifierSuffix: item.specifierSuffix,
         });

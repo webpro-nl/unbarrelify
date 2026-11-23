@@ -6,6 +6,7 @@ import { copyFixture, read } from "../helpers.ts";
 
 interface Expected {
   consumer?: string;
+  unsafeNamespace?: boolean;
   rewritten: string[];
   deleted: string[];
   untraceable?: string[];
@@ -128,12 +129,22 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { v as value } from "./x.mjs";'],
     deleted: ["index.mjs"],
   },
+  "private-key-star-consumer": {
+    consumer: "entry.mjs",
+    rewritten: ["export const marker = 42;", 'export * from "./leaf.js";'],
+    deleted: ["barrel.js"],
+  },
+  "private-key-unsafe-namespace": {
+    unsafeNamespace: true,
+    rewritten: ['import { value } from "./leaf.js";', 'import { id } from "./two.js";'],
+    deleted: ["barrel.js"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {
   test(`export tracing: ${name}`, async (t) => {
     const cwd = join(await copyFixture(t, "export-tracing"), name);
-    const result = await unbarrelify({ cwd, write: true });
+    const result = await unbarrelify({ cwd, write: true, unsafeNamespace: expected.unsafeNamespace });
 
     const consumer = await read(join(cwd, expected.consumer ?? "consumer.mjs"));
     assert.deepEqual(consumer.split("\n").slice(0, expected.rewritten.length), expected.rewritten);
