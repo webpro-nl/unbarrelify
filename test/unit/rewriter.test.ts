@@ -470,7 +470,7 @@ describe("rewriter", () => {
         await writeFile(leafPath, `export const foo = 1;`);
 
         const barrelAPath = join(tempDir, "a.ts");
-        await writeFile(barrelAPath, `export * from './b';\nexport { foo } from './leaf';`);
+        await writeFile(barrelAPath, `export * from './b';\nexport * from './leaf';`);
 
         const barrelBPath = join(tempDir, "b.ts");
         await writeFile(barrelBPath, `export * from './a';`);
