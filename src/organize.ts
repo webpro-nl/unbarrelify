@@ -4,21 +4,18 @@ import { printNode } from "./printer.ts";
 export function organizeImports(content: string, filePath: string): string {
   const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest);
   const groups: ts.ImportDeclaration[][] = [];
-  const adjacentGroups = new Map<string, ts.ImportDeclaration[]>();
+  let previous: string | undefined;
 
+  // Only consecutive imports merge: moving one past another module's import can change evaluation order.
   for (const stmt of sourceFile.statements) {
     if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteral(stmt.moduleSpecifier)) {
-      adjacentGroups.clear();
+      previous = undefined;
       continue;
     }
     const specifier = stmt.moduleSpecifier.text;
-    const group = adjacentGroups.get(specifier);
-    if (group) group.push(stmt);
-    else {
-      const imports = [stmt];
-      adjacentGroups.set(specifier, imports);
-      groups.push(imports);
-    }
+    if (specifier === previous) groups[groups.length - 1].push(stmt);
+    else groups.push([stmt]);
+    previous = specifier;
   }
 
   let needsOrganize = false;
@@ -30,19 +27,24 @@ export function organizeImports(content: string, filePath: string): string {
   }
   if (!needsOrganize) return content;
 
+  const hasOwnComments = (imp: ts.ImportDeclaration) =>
+    ts.getLeadingCommentRanges(content, imp.getFullStart()) || ts.getTrailingCommentRanges(content, imp.end);
+  const hasComments = (imp: ts.ImportDeclaration) =>
+    hasOwnComments(imp) || containsComment(content.slice(imp.getStart(sourceFile), imp.end));
+
   const edits: { start: number; end: number; text: string }[] = [];
   for (const group of groups) {
     if (group.length < 2) continue;
-    const hasOwnComments = (imp: ts.ImportDeclaration) =>
-      ts.getLeadingCommentRanges(content, imp.getFullStart()) || ts.getTrailingCommentRanges(content, imp.end);
-    if (group.slice(1).some(hasOwnComments)) continue;
-    const organized: string[] = [];
+    if (group.slice(1).some(hasComments)) continue;
     // @ts-expect-error testCoalesceImports internal fn
-    for (const imp of ts.OrganizeImports.testCoalesceImports(group, false, sourceFile, {})) {
+    const coalesced: ts.ImportDeclaration[] = ts.OrganizeImports.testCoalesceImports(group, false, sourceFile, {});
+    // The first import's comments would precede the first emitted declaration, which may not be that import.
+    if (coalesced.length > 1 && hasOwnComments(group[0])) continue;
+    const organized = coalesced.map((imp) => {
       // Leading and trailing comments remain outside the replacement ranges.
       ts.setEmitFlags(imp, ts.EmitFlags.NoLeadingComments | ts.EmitFlags.NoTrailingComments);
-      organized.push(printNode(imp, sourceFile));
-    }
+      return printNode(imp, sourceFile);
+    });
     for (const [index, imp] of group.entries()) {
       const start = imp.getStart(sourceFile);
       const lineStart = content.lastIndexOf("\n", start - 1) + 1;
@@ -64,4 +66,12 @@ export function organizeImports(content: string, filePath: string): string {
   }
 
   return content;
+}
+
+function containsComment(text: string): boolean {
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, text);
+  for (let token = scanner.scan(); token !== ts.SyntaxKind.EndOfFileToken; token = scanner.scan()) {
+    if (token === ts.SyntaxKind.SingleLineCommentTrivia || token === ts.SyntaxKind.MultiLineCommentTrivia) return true;
+  }
+  return false;
 }

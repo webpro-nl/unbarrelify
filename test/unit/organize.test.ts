@@ -186,4 +186,32 @@ console.log(saved, bar);
       assert.equal(organizeImports(content, "consumer.ts"), `import { a, b } from "./v";${eol}`);
     });
   }
+
+  for (const duplicate of [
+    "import /* consumer contract */ { b } from './v';",
+    "import { b } from /* generated alias */ './v';",
+  ]) {
+    test(`keeps a later duplicate with a comment inside it: ${duplicate}`, () => {
+      const content = `import { a } from './v';\n${duplicate}\nconsole.log(a, b);\n`;
+      assert.equal(organizeImports(content, "consumer.ts"), content);
+    });
+  }
+
+  test("keeps a comment on the first import with its declaration when coalescing splits the group", () => {
+    const content = `// @ts-expect-error Upstream declaration lacks this type.
+import type { Missing } from "./value.ts";
+import { value } from "./value.ts";
+export const result: Missing = value;
+`;
+    assert.equal(organizeImports(content, "consumer.ts"), content);
+  });
+
+  test("does not move an import of a module past an import of another module", () => {
+    const content = `import type { Kind } from "./value.ts";
+import "./effect.ts";
+import { value } from "./value.ts";
+const result: Kind = value;
+`;
+    assert.equal(organizeImports(content, "consumer.ts"), content);
+  });
 });
