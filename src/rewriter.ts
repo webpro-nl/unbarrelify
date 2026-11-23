@@ -235,10 +235,18 @@ async function traceExport(
     const external = isAbsolute(targetFilePath) ? exportItem.externalSpecifier : targetFilePath;
 
     if (external) {
+      // A package-private key without a local target cannot be copied to another file. Its exports still count,
+      // so the names it provides or may provide are not taken from elsewhere.
+      const isMovable = !external.startsWith("#");
       if (exportItem.exportedNames.has(name.name) || isNamespace) {
-        if (addRewrite(effectiveName, importItem, exportItem, external, rewrites, added, isNamespace)) return true;
+        if (isMovable && addRewrite(effectiveName, importItem, exportItem, external, rewrites, added, isNamespace)) {
+          return true;
+        }
       } else if (exportItem.exportStar && (!isAbsolute(targetFilePath) || exportItem.exportedNames.size === 0)) {
-        packageStars.set(external, () => addRewrite(name, importItem, exportItem, external, rewrites, added));
+        packageStars.set(
+          external,
+          () => isMovable && addRewrite(name, importItem, exportItem, external, rewrites, added),
+        );
       }
     } else if (!isIgnoredPath(targetFilePath, ctx.base)) {
       const targetFile = await analyzeFile(targetFilePath, ctx);

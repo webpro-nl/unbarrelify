@@ -139,6 +139,26 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { value } from "./leaf.js";', 'import { id } from "./two.js";'],
     deleted: ["barrel.js"],
   },
+  "private-key-named-dependency": {
+    rewritten: ['import { sep } from "./barrel.mjs";'],
+    deleted: [],
+    untraceable: ["sep"],
+  },
+  "private-key-star-dependency": {
+    rewritten: ['import { sep } from "./barrel.mjs";'],
+    deleted: [],
+    untraceable: ["sep"],
+  },
+  "private-key-star-dependency-flattened": {
+    consumer: "entry.mjs",
+    rewritten: ["export const marker = 42;", 'export * from "./barrel.mjs";'],
+    deleted: [],
+  },
+  "private-key-star-dependency-alone": {
+    rewritten: ['import { sep } from "./barrel.mjs";'],
+    deleted: [],
+    untraceable: ["sep"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {

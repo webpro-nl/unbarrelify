@@ -147,9 +147,8 @@ export async function buildExportMap(
 
     if (isAbsolute(resolvedPath)) {
       await processLocalExport(exports, node, resolvedPath, specifier, pos, sourceFileCache);
-    } else if (!specifier.startsWith("#")) {
+    } else {
       // The resolver returns a bare string for external or unresolved imports.
-      // Without a concrete target, a package-private key cannot be moved safely.
       processExternalExport(exports, node, specifier, pos);
     }
   }
