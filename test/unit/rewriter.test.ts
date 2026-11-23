@@ -489,6 +489,30 @@ describe("rewriter", () => {
       }
     });
 
+    it("resolves alternate aliased routes through a cyclic export graph", async (t) => {
+      const tempDir = await createTempDir();
+      t.after(() => rm(tempDir, { recursive: true, force: true }));
+      const ctx = createTestContext();
+      const leafPath = join(tempDir, "leaf.ts");
+      await writeFile(leafPath, "export const target = 1;");
+      await writeFile(join(tempDir, "entry.ts"), "export * from './dead';\nexport * from './live';");
+      await writeFile(join(tempDir, "dead.ts"), "export * from './entry';\nexport { missing as foo } from './shared';");
+      await writeFile(join(tempDir, "live.ts"), "export { target as foo } from './shared';");
+      await writeFile(join(tempDir, "shared.ts"), "export * from './leaf';");
+
+      const consumerPath = join(tempDir, "consumer.ts");
+      await writeFile(consumerPath, "import { foo as value } from './entry';");
+      const analysis = await analyzeFile(consumerPath, ctx);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
+
+      assert.deepEqual(
+        [...rewrites.values()].flatMap((group) => [...group.keys()]),
+        [leafPath],
+      );
+      assert.equal(ctx.tracker.untraceableImports.length, 0);
+      assert.match(applyRewrites(analysis.sourceFile!, rewrites, consumerPath), /target as value/);
+    });
+
     it("handles aliased imports", async () => {
       const tempDir = await createTempDir();
       const ctx = createTestContext();

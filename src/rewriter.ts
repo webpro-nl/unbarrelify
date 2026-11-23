@@ -165,7 +165,7 @@ async function traceExport(
   rewrites: Rewrites,
   ctx: Context,
   added: Set<string>,
-  visiting: Set<string> = new Set(),
+  visited: Set<string> = new Set(),
 ): Promise<boolean> {
   if (!exports) return false;
 
@@ -219,10 +219,9 @@ async function traceExport(
     }
 
     const visitKey = `${targetFilePath}:${effectiveName.name}:${effectiveName.alias ?? ""}`;
-    if (visiting.has(visitKey)) continue;
-    visiting.add(visitKey);
-    const found = await traceExport(effectiveName, importItem, targetFile.exports, rewrites, ctx, added, visiting);
-    visiting.delete(visitKey);
+    if (visited.has(visitKey)) continue;
+    visited.add(visitKey);
+    const found = await traceExport(effectiveName, importItem, targetFile.exports, rewrites, ctx, added, visited);
     if (found) return true;
   }
 
