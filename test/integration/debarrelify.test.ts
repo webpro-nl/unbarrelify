@@ -1361,6 +1361,8 @@ describe("unbarrelify integration tests", () => {
 
       const preservedInner = result.preserved.find((p) => p.path.includes("inner/index.ts"));
       assert.ok(preservedInner);
+      assert.equal(preservedInner.reason, "barrel-reexport");
+      assert.deepEqual(preservedInner.consumers, [join(fixtureDir, "src/outer/index.ts")]);
     });
 
     test("rewrites regular TS consumer but keeps both barrels", async (t) => {
@@ -1424,6 +1426,44 @@ describe("unbarrelify integration tests", () => {
 
       const consumerContent = await read(join(fixtureDir, "consumer.ts"));
       assert.ok(consumerContent.includes('./utils?raw"'));
+    });
+  });
+
+  describe("untraceable-export fixture", () => {
+    test("keeps the barrel and declarations with untraceable names", async (t) => {
+      const fixtureDir = await copyFixture(t, "untraceable-export");
+
+      const result = await unbarrelify({
+        cwd: fixtureDir,
+        files: ["**/*.ts"],
+        skip: [],
+        write: true,
+      });
+
+      assert.deepEqual(result.untraceableImports.map(({ consumerPath, name }) => `${consumerPath}:${name}`).sort(), [
+        `${join(fixtureDir, "mixed.ts")}:Kind`,
+        `${join(fixtureDir, "split.ts")}:Kind`,
+      ]);
+      assert.deepEqual(result.deleted, []);
+      assert.deepEqual(
+        result.preserved.map(({ path, reason, consumers }) => ({ path, reason, consumers: consumers.toSorted() })),
+        [
+          {
+            path: join(fixtureDir, "index.ts"),
+            reason: "untraceable-import",
+            consumers: [join(fixtureDir, "mixed.ts"), join(fixtureDir, "split.ts")],
+          },
+        ],
+      );
+      assert.ok(existsSync(join(fixtureDir, "index.ts")));
+      assert.equal(
+        await read(join(fixtureDir, "mixed.ts")),
+        'import { a, value, type Kind } from "./index.js";\n\nconst kind: Kind = "a";\n\nexport { a, value, kind };\n',
+      );
+      assert.equal(
+        await read(join(fixtureDir, "split.ts")),
+        'import { a } from "./a.js";\nimport type { Kind } from "./index.js";\n\nconst kind: Kind = "b";\n\nexport { a, kind };\n',
+      );
     });
   });
 });
