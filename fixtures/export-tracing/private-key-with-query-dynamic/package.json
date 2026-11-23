@@ -2,6 +2,9 @@
   "type": "module",
   "imports": {
     "#lib": "./plain.mjs",
-    "#lib?mode": "./special.mjs"
+    "#lib?mode": {
+      "import": "./special.mjs",
+      "default": "./wrong.mjs"
+    }
   }
 }

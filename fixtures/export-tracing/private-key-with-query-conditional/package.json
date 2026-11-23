@@ -3,7 +3,8 @@
   "imports": {
     "#lib": "./plain.mjs",
     "#lib?mode": {
-      "import": "./special.mjs"
+      "import": "./special.mjs",
+      "default": "./wrong.mjs"
     }
   }
 }

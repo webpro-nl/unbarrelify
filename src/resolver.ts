@@ -1,6 +1,7 @@
-import { basename, dirname, extname, isAbsolute, join, relative } from "node:path";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { basename, dirname, extname, isAbsolute, relative } from "node:path";
+import { realpathSync } from "node:fs";
 import { ResolverFactory } from "oxc-resolver";
+import ts from "typescript";
 import type { NapiResolveOptions } from "oxc-resolver";
 import { getExtensionFromSpecifier, tryMapToAlias } from "./config.ts";
 import type { PathAliases, Rewrite } from "./types.ts";
@@ -42,45 +43,36 @@ function stripQueryString(specifier: string): string {
 }
 
 // Node matches a package-private key as written, `?` and `#` included, while oxc-resolver splits those off
-// first. A key that contains one is therefore read from the importer's package.json.
-function findLiteralPackageImport(
-  fromPath: string,
-  key: string,
-): { packageJsonPath: string; target: unknown } | undefined {
-  if (!/^#.*[?#]/.test(key)) return undefined;
+// first. TypeScript's Node resolution finds such a key; declaration files are hidden so it returns the module.
+const nodeResolution: ts.CompilerOptions = {
+  allowJs: true,
+  module: ts.ModuleKind.NodeNext,
+  moduleResolution: ts.ModuleResolutionKind.NodeNext,
+};
+const moduleFiles: ts.ModuleResolutionHost = {
+  ...ts.sys,
+  fileExists: (path) => !/\.d\.[cm]?ts$/.test(path) && ts.sys.fileExists(path),
+};
 
-  for (let dir = dirname(fromPath); ; dir = dirname(dir)) {
-    const packageJsonPath = join(dir, "package.json");
-    if (existsSync(packageJsonPath)) {
-      try {
-        const { imports } = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
-        return imports && Object.hasOwn(imports, key) ? { packageJsonPath, target: imports[key] } : undefined;
-      } catch {
-        return undefined;
-      }
-    }
-    if (dir === dirname(dir)) return undefined;
-  }
+function resolvePackageImportKey(fromPath: string, key: string): string | undefined {
+  if (!/^#.*[?#]/.test(key)) return undefined;
+  const mode = ts.ModuleKind.ESNext;
+  return ts.resolveModuleName(key, fromPath, nodeResolution, moduleFiles, undefined, undefined, mode).resolvedModule
+    ?.resolvedFileName;
 }
 
 export function isPackageImportKey(fromPath: string, key: string): boolean {
-  return findLiteralPackageImport(fromPath, key) !== undefined;
+  return resolvePackageImportKey(fromPath, key) !== undefined;
 }
 
 export function resolveModule(fromPath: string, specifier: string, aliases: PathAliases | null): string | undefined {
-  const literal = findLiteralPackageImport(fromPath, specifier);
-  if (literal) {
-    // Only a plain file target is followed; any other target leaves the import as it is.
-    const target =
-      typeof literal.target === "string" ? resolveModule(literal.packageJsonPath, literal.target, aliases) : undefined;
-    return target && isAbsolute(target) ? target : specifier;
-  }
-
   const cleanSpecifier = stripQueryString(specifier);
   const isRelativeOrAbsolute = cleanSpecifier.startsWith(".") || cleanSpecifier.startsWith("/");
 
-  const result = resolver.resolveFileSync(fromPath, cleanSpecifier);
-  const resolvedPath = result?.path ?? resolveWithProjectConfig(fromPath, cleanSpecifier, aliases);
+  const resolvedPath =
+    resolvePackageImportKey(fromPath, specifier) ??
+    resolver.resolveFileSync(fromPath, cleanSpecifier)?.path ??
+    resolveWithProjectConfig(fromPath, cleanSpecifier, aliases);
 
   if (!resolvedPath) {
     return isRelativeOrAbsolute ? undefined : cleanSpecifier;

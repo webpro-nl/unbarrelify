@@ -187,8 +187,8 @@ const cases: Record<string, Expected> = {
     deleted: [],
   },
   "private-key-with-query-conditional": {
-    rewritten: ['import { value } from "#lib?mode";'],
-    deleted: [],
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: ["special.mjs"],
   },
   "private-key-with-query-reexport": {
     rewritten: ['export { value } from "./right.mjs";'],
@@ -202,6 +202,18 @@ const cases: Record<string, Expected> = {
   "private-key-conditional-target": {
     rewritten: ['import { value } from "./leaf.mjs";'],
     deleted: ["barrel.mjs"],
+  },
+  "private-key-with-query-array": {
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: ["special.mjs"],
+  },
+  "private-key-with-query-pattern": {
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: ["special-mode.mjs"],
+  },
+  "private-key-with-query-declaration": {
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: ["special.mjs"],
   },
 };
 
