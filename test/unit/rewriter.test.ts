@@ -1,13 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import ts from "typescript";
-import { mkdir, rm, writeFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { applyRewrites, buildRewrites, buildRewriteItem, reverseRewritesByPos } from "../../src/rewriter.ts";
 import { analyzeFile } from "../../src/analyzer.ts";
 import { BarrelTracker } from "../../src/tracker.ts";
 import type { Context, ExportData, File, ImportData, Name, Rewrites } from "../../src/types.ts";
+import { fixture } from "../helpers.ts";
 
 const DEBUG = false;
 function debug(...args: unknown[]) {
@@ -33,12 +32,6 @@ function createTestContext(): Context {
     progress: () => {},
     tracker: new BarrelTracker(),
   };
-}
-
-async function createTempDir(): Promise<string> {
-  const dir = join(tmpdir(), `rewriter-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  await mkdir(dir, { recursive: true });
-  return realpath(dir);
 }
 
 describe("rewriter", () => {
@@ -337,171 +330,92 @@ describe("rewriter", () => {
   });
 
   describe("buildRewrites", () => {
+    const starBarrelDir = fixture("rewrites-star-barrel");
+
     it("builds rewrites for named import from barrel", async () => {
-      const tempDir = await createTempDir();
       const ctx = createTestContext();
+      const barrelPath = join(starBarrelDir, "index.ts");
+      const consumerPath = join(starBarrelDir, "named.ts");
 
-      try {
-        const barrelPath = join(tempDir, "index.ts");
-        await writeFile(barrelPath, `export * from './utils';`);
+      const analysis = await analyzeFile(consumerPath, ctx);
 
-        const utilsPath = join(tempDir, "utils.ts");
-        await writeFile(utilsPath, `export function foo() {}`);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `import { foo } from './index';`);
-
-        const analysis = await analyzeFile(consumerPath, ctx);
-
-        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-
-        assert.ok(rewrites.size > 0);
-        assert.ok(ctx.tracker.has(barrelPath));
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      assert.ok(rewrites.size > 0);
+      assert.ok(ctx.tracker.has(barrelPath));
     });
 
     it("builds rewrites for default import from barrel", async () => {
-      const tempDir = await createTempDir();
+      const dir = fixture("rewrites-default-export");
       const ctx = createTestContext();
+      const barrelPath = join(dir, "index.ts");
+      const consumerPath = join(dir, "consumer.ts");
 
-      try {
-        const barrelPath = join(tempDir, "index.ts");
-        await writeFile(barrelPath, `export * from './utils';`);
+      const analysis = await analyzeFile(consumerPath, ctx);
 
-        const utilsPath = join(tempDir, "utils.ts");
-        await writeFile(utilsPath, `export default function myFunc() {}`);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `import myFunc from './index';`);
-
-        const analysis = await analyzeFile(consumerPath, ctx);
-
-        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-
-        assert.ok(rewrites.size > 0);
-        assert.ok(ctx.tracker.has(barrelPath));
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      assert.ok(rewrites.size > 0);
+      assert.ok(ctx.tracker.has(barrelPath));
     });
 
     it("returns empty rewrites for non-barrel imports", async () => {
-      const tempDir = await createTempDir();
       const ctx = createTestContext();
+      const consumerPath = join(starBarrelDir, "direct.ts");
 
-      try {
-        const utilsPath = join(tempDir, "utils.ts");
-        await writeFile(utilsPath, `export function foo() {}`);
+      const analysis = await analyzeFile(consumerPath, ctx);
 
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `import { foo } from './utils';`);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        const analysis = await analyzeFile(consumerPath, ctx);
-
-        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-
-        assert.equal(rewrites.size, 0);
-        assert.equal(ctx.tracker.barrels.size, 0);
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      assert.equal(rewrites.size, 0);
+      assert.equal(ctx.tracker.barrels.size, 0);
     });
 
     it("returns empty rewrites for barrel files", async () => {
-      const tempDir = await createTempDir();
       const ctx = createTestContext();
+      const barrelPath = join(starBarrelDir, "index.ts");
 
-      try {
-        const barrelPath = join(tempDir, "index.ts");
-        await writeFile(barrelPath, `export * from './utils';`);
+      const analysis = await analyzeFile(barrelPath, ctx);
 
-        const utilsPath = join(tempDir, "utils.ts");
-        await writeFile(utilsPath, `export function foo() {}`);
+      const rewrites = await buildRewrites(analysis, barrelPath, ctx);
 
-        const analysis = await analyzeFile(barrelPath, ctx);
-
-        const rewrites = await buildRewrites(analysis, barrelPath, ctx);
-
-        assert.equal(rewrites.size, 0);
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      assert.equal(rewrites.size, 0);
     });
 
     it("resolves through chained barrels", async () => {
-      const tempDir = await createTempDir();
+      const dir = fixture("rewrites-chained-barrels");
       const ctx = createTestContext();
+      const outerBarrelPath = join(dir, "index.ts");
+      const consumerPath = join(dir, "consumer.ts");
 
-      try {
-        const subDir = join(tempDir, "sub");
-        await mkdir(subDir, { recursive: true });
+      const analysis = await analyzeFile(consumerPath, ctx);
 
-        const implPath = join(subDir, "impl.ts");
-        await writeFile(implPath, `export function foo() {}`);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        const innerBarrelPath = join(subDir, "index.ts");
-        await writeFile(innerBarrelPath, `export * from './impl';`);
-
-        const outerBarrelPath = join(tempDir, "index.ts");
-        await writeFile(outerBarrelPath, `export * from './sub';`);
-
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `import { foo } from './index';`);
-
-        const analysis = await analyzeFile(consumerPath, ctx);
-
-        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-
-        assert.ok(rewrites.size > 0);
-        assert.ok(ctx.tracker.has(outerBarrelPath));
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      assert.ok(rewrites.size > 0);
+      assert.ok(ctx.tracker.has(outerBarrelPath));
     });
 
     it("resolves through cyclic star re-exports between barrels", async () => {
-      const tempDir = await createTempDir();
+      const dir = fixture("rewrites-cyclic-stars");
       const ctx = createTestContext();
+      const leafPath = join(dir, "leaf.ts");
+      const consumerPath = join(dir, "consumer.ts");
 
-      try {
-        const leafPath = join(tempDir, "leaf.ts");
-        await writeFile(leafPath, `export const foo = 1;`);
+      const analysis = await analyzeFile(consumerPath, ctx);
 
-        const barrelAPath = join(tempDir, "a.ts");
-        await writeFile(barrelAPath, `export * from './b';\nexport * from './leaf';`);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        const barrelBPath = join(tempDir, "b.ts");
-        await writeFile(barrelBPath, `export * from './a';`);
-
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `import { foo } from './a';`);
-
-        const analysis = await analyzeFile(consumerPath, ctx);
-
-        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-
-        const targets = [...rewrites.values()].flatMap((posRewrites) => [...posRewrites.keys()]);
-        assert.deepEqual(targets, [leafPath]);
-        assert.equal(ctx.tracker.untraceableImports.length, 0);
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      const targets = [...rewrites.values()].flatMap((posRewrites) => [...posRewrites.keys()]);
+      assert.deepEqual(targets, [leafPath]);
+      assert.equal(ctx.tracker.untraceableImports.length, 0);
     });
 
-    it("revisits a barrel under another name in a cyclic export graph", async (t) => {
-      const tempDir = await createTempDir();
-      t.after(() => rm(tempDir, { recursive: true, force: true }));
+    it("revisits a barrel under another name in a cyclic export graph", async () => {
+      const dir = fixture("rewrites-cyclic-renamed");
       const ctx = createTestContext();
-      const leafPath = join(tempDir, "leaf.ts");
-      await writeFile(leafPath, "export const b = 1;");
-      await writeFile(join(tempDir, "entry.ts"), "export * from './hub';");
-      await writeFile(join(tempDir, "hub.ts"), "export { b as a } from './relay';\nexport * from './leaf';");
-      await writeFile(join(tempDir, "relay.ts"), "export * from './hub';");
-
-      const consumerPath = join(tempDir, "consumer.ts");
-      await writeFile(consumerPath, "import { a as value } from './entry';");
+      const leafPath = join(dir, "leaf.ts");
+      const consumerPath = join(dir, "consumer.ts");
       const analysis = await analyzeFile(consumerPath, ctx);
       const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
@@ -514,250 +428,142 @@ describe("rewriter", () => {
     });
 
     it("prefers a local export over an earlier package star re-export", async () => {
-      const tempDir = await createTempDir();
+      const dir = fixture("rewrites-package-star-local");
       const ctx = createTestContext();
+      const leafPath = join(dir, "leaf.ts");
+      const consumerPath = join(dir, "consumer.ts");
 
-      try {
-        const leafPath = join(tempDir, "leaf.ts");
-        await writeFile(leafPath, `export const foo = 1;`);
+      const analysis = await analyzeFile(consumerPath, ctx);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        const barrelPath = join(tempDir, "index.ts");
-        await writeFile(barrelPath, `export * from 'node:path';\nexport { foo } from './leaf';`);
-
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `import { foo, join as joinPath } from './index';`);
-
-        const analysis = await analyzeFile(consumerPath, ctx);
-        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-
-        const targets = [...rewrites.values()].flatMap((posRewrites) =>
-          [...posRewrites].map(([target, rewrite]) => [target, rewrite.named.map((item) => item.name)]),
-        );
-        assert.deepEqual(targets, [
-          [leafPath, ["foo"]],
-          ["node:path", ["join"]],
-        ]);
-        assert.equal(ctx.tracker.untraceableImports.length, 0);
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      const targets = [...rewrites.values()].flatMap((posRewrites) =>
+        [...posRewrites].map(([target, rewrite]) => [target, rewrite.named.map((item) => item.name)]),
+      );
+      assert.deepEqual(targets, [
+        [leafPath, ["foo"]],
+        ["node:path", ["join"]],
+      ]);
+      assert.equal(ctx.tracker.untraceableImports.length, 0);
     });
 
     it("leaves a name untraceable when several package star re-exports could own it", async () => {
-      const tempDir = await createTempDir();
+      const dir = fixture("rewrites-package-stars-ambiguous");
       const ctx = createTestContext();
+      const consumerPath = join(dir, "consumer.ts");
 
-      try {
-        const barrelPath = join(tempDir, "index.ts");
-        await writeFile(barrelPath, `export * from 'node:path';\nexport * from 'node:os';`);
+      const analysis = await analyzeFile(consumerPath, ctx);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `import { homedir } from './index';`);
+      assert.equal(rewrites.size, 0);
+      assert.deepEqual(
+        ctx.tracker.untraceableImports.map((item) => item.name),
+        ["homedir"],
+      );
+    });
+
+    for (const [label, barrel] of [
+      ["an earlier star re-export", "first"],
+      ["star re-exports of both sources", "both"],
+    ]) {
+      it(`prefers a named re-export over ${label} of the same name`, async () => {
+        const dir = fixture("rewrites-named-over-star");
+        const ctx = createTestContext();
+        const yPath = join(dir, "y.ts");
+        const consumerPath = join(dir, `${barrel}-consumer.ts`);
 
         const analysis = await analyzeFile(consumerPath, ctx);
         const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        assert.equal(rewrites.size, 0);
-        assert.deepEqual(
-          ctx.tracker.untraceableImports.map((item) => item.name),
-          ["homedir"],
-        );
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
-    });
-
-    for (const [label, barrel] of [
-      ["an earlier star re-export", `export * from './x';\nexport { a } from './y';`],
-      ["star re-exports of both sources", `export * from './x';\nexport * from './y';\nexport { a } from './y';`],
-    ]) {
-      it(`prefers a named re-export over ${label} of the same name`, async () => {
-        const tempDir = await createTempDir();
-        const ctx = createTestContext();
-
-        try {
-          await writeFile(join(tempDir, "x.ts"), `export const a = 1;`);
-
-          const yPath = join(tempDir, "y.ts");
-          await writeFile(yPath, `export const a = 2;`);
-
-          await writeFile(join(tempDir, "index.ts"), barrel);
-
-          const consumerPath = join(tempDir, "consumer.ts");
-          await writeFile(consumerPath, `import { a } from './index';`);
-
-          const analysis = await analyzeFile(consumerPath, ctx);
-          const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-
-          const targets = [...rewrites.values()].flatMap((posRewrites) => [...posRewrites.keys()]);
-          assert.deepEqual(targets, [yPath]);
-        } finally {
-          await rm(tempDir, { recursive: true, force: true });
-        }
+        const targets = [...rewrites.values()].flatMap((posRewrites) => [...posRewrites.keys()]);
+        assert.deepEqual(targets, [yPath]);
       });
     }
 
     it("handles aliased imports", async () => {
-      const tempDir = await createTempDir();
       const ctx = createTestContext();
+      const barrelPath = join(starBarrelDir, "index.ts");
+      const consumerPath = join(starBarrelDir, "aliased.ts");
 
-      try {
-        const barrelPath = join(tempDir, "index.ts");
-        await writeFile(barrelPath, `export * from './utils';`);
+      const analysis = await analyzeFile(consumerPath, ctx);
 
-        const utilsPath = join(tempDir, "utils.ts");
-        await writeFile(utilsPath, `export function foo() {}`);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `import { foo as bar } from './index';`);
-
-        const analysis = await analyzeFile(consumerPath, ctx);
-
-        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-
-        assert.ok(rewrites.size > 0);
-        assert.ok(ctx.tracker.has(barrelPath));
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      assert.ok(rewrites.size > 0);
+      assert.ok(ctx.tracker.has(barrelPath));
     });
 
     it("handles type-only imports", async () => {
-      const tempDir = await createTempDir();
+      const dir = fixture("rewrites-type-star");
       const ctx = createTestContext();
+      const barrelPath = join(dir, "index.ts");
+      const consumerPath = join(dir, "consumer.ts");
 
-      try {
-        const barrelPath = join(tempDir, "index.ts");
-        await writeFile(barrelPath, `export * from './types';`);
+      const analysis = await analyzeFile(consumerPath, ctx);
 
-        const typesPath = join(tempDir, "types.ts");
-        await writeFile(typesPath, `export interface Foo { name: string; }`);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `import type { Foo } from './index';`);
-
-        const analysis = await analyzeFile(consumerPath, ctx);
-
-        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-
-        assert.ok(rewrites.size > 0);
-        assert.ok(ctx.tracker.has(barrelPath));
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      assert.ok(rewrites.size > 0);
+      assert.ok(ctx.tracker.has(barrelPath));
     });
 
     it("handles re-exports", async () => {
-      const tempDir = await createTempDir();
       const ctx = createTestContext();
+      const barrelPath = join(starBarrelDir, "index.ts");
+      const consumerPath = join(starBarrelDir, "reexport.ts");
 
-      try {
-        const barrelPath = join(tempDir, "index.ts");
-        await writeFile(barrelPath, `export * from './utils';`);
+      const analysis = await analyzeFile(consumerPath, ctx);
+      debug("Re-export analysis isBarrel:", analysis.isBarrel);
+      debug("Re-export analysis imports:", [...analysis.imports.entries()]);
 
-        const utilsPath = join(tempDir, "utils.ts");
-        await writeFile(utilsPath, `export function foo() {}`);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
+      debug("Re-export rewrites size:", rewrites.size);
+      debug("Re-export ctx.tracker.barrels:", [...ctx.tracker.barrels.keys()]);
 
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `export { foo } from './index';\nconst x = 1;`);
-
-        const analysis = await analyzeFile(consumerPath, ctx);
-        debug("Re-export analysis isBarrel:", analysis.isBarrel);
-        debug("Re-export analysis imports:", [...analysis.imports.entries()]);
-
-        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-        debug("Re-export rewrites size:", rewrites.size);
-        debug("Re-export ctx.tracker.barrels:", [...ctx.tracker.barrels.keys()]);
-
-        assert.ok(rewrites.size > 0);
-        assert.ok(ctx.tracker.has(barrelPath));
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      assert.ok(rewrites.size > 0);
+      assert.ok(ctx.tracker.has(barrelPath));
     });
 
     it("builds rewrites for namespace import from single-source barrel", async () => {
-      const tempDir = await createTempDir();
       const ctx = createTestContext();
+      const barrelPath = join(starBarrelDir, "index.ts");
+      const consumerPath = join(starBarrelDir, "namespace.ts");
 
-      try {
-        const barrelPath = join(tempDir, "index.ts");
-        await writeFile(barrelPath, `export * from './utils';`);
+      const analysis = await analyzeFile(consumerPath, ctx);
 
-        const utilsPath = join(tempDir, "utils.ts");
-        await writeFile(utilsPath, `export function foo() {}\nexport const bar = 42;`);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `import * as lib from './index';`);
-
-        const analysis = await analyzeFile(consumerPath, ctx);
-
-        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-
-        assert.ok(rewrites.size > 0);
-        assert.ok(ctx.tracker.has(barrelPath));
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      assert.ok(rewrites.size > 0);
+      assert.ok(ctx.tracker.has(barrelPath));
     });
 
     it("does not build rewrites for namespace import from multi-source barrel", async () => {
-      const tempDir = await createTempDir();
+      const dir = fixture("rewrites-namespace-multi-source");
       const ctx = createTestContext();
+      const barrelPath = join(dir, "index.ts");
+      const consumerPath = join(dir, "consumer.ts");
 
-      try {
-        const barrelPath = join(tempDir, "index.ts");
-        await writeFile(barrelPath, `export * from './utils';\nexport * from './helpers';`);
+      const analysis = await analyzeFile(consumerPath, ctx);
 
-        const utilsPath = join(tempDir, "utils.ts");
-        await writeFile(utilsPath, `export function foo() {}`);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        const helpersPath = join(tempDir, "helpers.ts");
-        await writeFile(helpersPath, `export function bar() {}`);
-
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `import * as lib from './index';`);
-
-        const analysis = await analyzeFile(consumerPath, ctx);
-
-        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-
-        assert.equal(rewrites.size, 0);
-        assert.ok(ctx.tracker.has(barrelPath));
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      assert.equal(rewrites.size, 0);
+      assert.ok(ctx.tracker.has(barrelPath));
     });
 
     it("does not rewrite to files that export nothing via star re-export", async () => {
-      const tempDir = await createTempDir();
+      const dir = fixture("rewrites-type-star-empty");
       const ctx = createTestContext();
+      const consumerPath = join(dir, "consumer.ts");
 
-      try {
-        const barrelPath = join(tempDir, "index.ts");
-        await writeFile(barrelPath, `export type * from './context';\nexport type * from './empty';`);
+      const analysis = await analyzeFile(consumerPath, ctx);
 
-        const contextPath = join(tempDir, "context.ts");
-        await writeFile(contextPath, `export type APIContext = { url: URL };`);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
 
-        const emptyPath = join(tempDir, "empty.ts");
-        await writeFile(emptyPath, `export {};`);
-
-        const consumerPath = join(tempDir, "consumer.ts");
-        await writeFile(consumerPath, `import type { APIContext } from './index';`);
-
-        const analysis = await analyzeFile(consumerPath, ctx);
-
-        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
-
-        assert.equal(rewrites.size, 1);
-        const posRewrites = [...rewrites.values()][0];
-        assert.equal(posRewrites.size, 1);
-        const [targetPath] = [...posRewrites.keys()];
-        assert.ok(targetPath.endsWith("context.ts"));
-      } finally {
-        await rm(tempDir, { recursive: true, force: true });
-      }
+      assert.equal(rewrites.size, 1);
+      const posRewrites = [...rewrites.values()][0];
+      assert.equal(posRewrites.size, 1);
+      const [targetPath] = [...posRewrites.keys()];
+      assert.ok(targetPath.endsWith("context.ts"));
     });
   });
 });
