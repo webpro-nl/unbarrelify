@@ -5,7 +5,7 @@ import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { glob } from "tinyglobby";
 
-export const fixturesDir = resolve(import.meta.dirname, "../../fixtures");
+export const fixturesDir = resolve(import.meta.dirname, "../fixtures");
 
 export function fixture(name: string): string {
   return join(fixturesDir, name);

@@ -6,7 +6,7 @@ import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { unbarrelify } from "../../src/index.ts";
-import { copyFixture } from "./helpers.ts";
+import { copyFixture } from "../helpers.ts";
 
 async function createProject(t: TestContext, consumers: string[]) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), "unbarrelify-write-failure-")));

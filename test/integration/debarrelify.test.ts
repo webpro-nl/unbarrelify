@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { unbarrelify } from "../../src/main.ts";
-import { copyFixture, read } from "./helpers.ts";
+import { copyFixture, read } from "../helpers.ts";
 
 describe("unbarrelify integration tests", () => {
   describe("simple-barrel fixture", () => {

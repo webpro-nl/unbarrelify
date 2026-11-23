@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { unbarrelify } from "../../src/index.ts";
-import { snapshotDir } from "./helpers.ts";
+import { snapshotDir } from "../helpers.ts";
 
 const barrel = 'export * from "./a.mjs";\nexport * from "./b.mjs";\n';
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { unbarrelify } from "../../src/main.ts";
-import { fixture, copyFixture, read, snapshotDir } from "./helpers.ts";
+import { fixture, copyFixture, read, snapshotDir } from "../helpers.ts";
 
 describe("dry-run mode tests", () => {
   describe("dry-run mode doesn't modify files", () => {
