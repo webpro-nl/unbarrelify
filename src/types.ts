@@ -20,7 +20,7 @@ export interface ExportData {
   exportedNames: Set<string>;
   exportStar?: boolean;
   exportStarIsTypeOnly?: boolean;
-  hasNamedExports?: boolean;
+  namedExports?: Set<string>;
   reExportedNs?: string;
   externalSpecifier?: string;
   aliases?: Map<string, string>;

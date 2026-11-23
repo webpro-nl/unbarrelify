@@ -567,6 +567,36 @@ describe("rewriter", () => {
       }
     });
 
+    for (const [label, barrel] of [
+      ["an earlier star re-export", `export * from './x';\nexport { a } from './y';`],
+      ["star re-exports of both sources", `export * from './x';\nexport * from './y';\nexport { a } from './y';`],
+    ]) {
+      it(`prefers a named re-export over ${label} of the same name`, async () => {
+        const tempDir = await createTempDir();
+        const ctx = createTestContext();
+
+        try {
+          await writeFile(join(tempDir, "x.ts"), `export const a = 1;`);
+
+          const yPath = join(tempDir, "y.ts");
+          await writeFile(yPath, `export const a = 2;`);
+
+          await writeFile(join(tempDir, "index.ts"), barrel);
+
+          const consumerPath = join(tempDir, "consumer.ts");
+          await writeFile(consumerPath, `import { a } from './index';`);
+
+          const analysis = await analyzeFile(consumerPath, ctx);
+          const rewrites = await buildRewrites(analysis, consumerPath, ctx);
+
+          const targets = [...rewrites.values()].flatMap((posRewrites) => [...posRewrites.keys()]);
+          assert.deepEqual(targets, [yPath]);
+        } finally {
+          await rm(tempDir, { recursive: true, force: true });
+        }
+      });
+    }
+
     it("handles aliased imports", async () => {
       const tempDir = await createTempDir();
       const ctx = createTestContext();

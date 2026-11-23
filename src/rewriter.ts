@@ -182,7 +182,10 @@ async function traceExport(
 ): Promise<boolean> {
   if (!exports) return false;
 
-  for (const [targetFilePath, exportItem] of exports) {
+  // A named re-export takes precedence over `export *`, whatever their order.
+  const isNamed = ([, exportItem]: [string, ExportData]) => Number(exportItem.namedExports?.has(name.name) ?? false);
+
+  for (const [targetFilePath, exportItem] of [...exports].sort((a, b) => isNamed(b) - isNamed(a))) {
     const isExported = isNameExported(name, exportItem);
     if (!isExported && !exportItem.exportStar) continue;
 
@@ -411,7 +414,7 @@ async function canFlattenStarExports(exports: ExportMap, ctx: Context, visited: 
     if (!isAbsolute(targetFilePath) || isIgnoredPath(targetFilePath, ctx.base)) return false;
     if (
       !exportData.exportStar ||
-      exportData.hasNamedExports ||
+      exportData.namedExports ||
       exportData.aliases ||
       exportData.exportedAsDefault ||
       exportData.reExportedNs
