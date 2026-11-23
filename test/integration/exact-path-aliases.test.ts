@@ -1,16 +1,20 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, extname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import ts from "typescript";
 import { initProjectConfig } from "../../src/config.ts";
 import { unbarrelify } from "../../src/main.ts";
 import { buildSpecifier } from "../../src/resolver.ts";
 
-async function createProject(t: TestContext, paths: Record<string, string[]>, specifier: string) {
+async function createProject(
+  t: TestContext,
+  paths: Record<string, string[]>,
+  specifier: string,
+  fixturePath = "src/utils",
+) {
   const cwd = realpathSync(await mkdtemp(join(tmpdir(), "unbarrelify-exact-alias-")));
   t.after(() => rm(cwd, { recursive: true, force: true }));
   const files = {
@@ -30,8 +34,8 @@ async function createProject(t: TestContext, paths: Record<string, string[]>, sp
       },
       include: ["**/*.ts"],
     }),
-    "src/utils/value.ts": "export const value = 21;\n",
-    "src/utils/index.ts": 'export { value } from "./value";\n',
+    [fixturePath + "/value.ts"]: "export const value = 21;\n",
+    [fixturePath + "/index.ts"]: 'export { value } from "./value";\n',
     "consumer.ts": `import { value } from "${specifier}";\nexport const kept: number = value * 2;\n`,
   };
   for (const [name, content] of Object.entries(files)) {
@@ -67,34 +71,6 @@ async function checkConsumer(t: TestContext, cwd: string, phase: string, target:
   const resolved = ts.resolveModuleName(specifier, consumer, parsed.options, ts.sys).resolvedModule;
   assert.equal(resolved?.resolvedFileName, join(cwd, target), `${phase}: ${specifier}`);
 
-  // Node does not implement tsconfig paths. Use TypeScript's resolver for this
-  // fixture, then let Node load and execute the actual TypeScript modules.
-  const runner = `
-    import { registerHooks } from "node:module";
-    import { fileURLToPath, pathToFileURL } from "node:url";
-    import ts from ${JSON.stringify(import.meta.resolve("typescript"))};
-    const cwd = ${JSON.stringify(cwd)};
-    const options = ${JSON.stringify(parsed.options)};
-    registerHooks({ resolve(specifier, context, nextResolve) {
-      if (context.parentURL?.startsWith(pathToFileURL(cwd + "/").href)) {
-        const resolved = ts.resolveModuleName(specifier, fileURLToPath(context.parentURL), options, ts.sys).resolvedModule;
-        if (resolved) return nextResolve(pathToFileURL(resolved.resolvedFileName).href, context);
-      }
-      return nextResolve(specifier, context);
-    }});
-    const { kept } = await import(pathToFileURL(${JSON.stringify(consumer)}).href);
-    console.log(kept);
-  `;
-  const output = execFileSync(process.execPath, ["--input-type=module", "--eval", runner], {
-    cwd,
-    encoding: "utf8",
-    timeout: 10_000,
-    env: { ...process.env, NODE_DISABLE_COMPILE_CACHE: "1" },
-  });
-  assert.equal(output, "42\n", `${phase}: executed consumer`);
-  t.diagnostic(
-    `${phase}: ${specifier} (extension ${extname(specifier) || "none"}) resolves to ${target}; executed consumer=42`,
-  );
   return specifier;
 }
 
@@ -137,6 +113,19 @@ for (const scenario of cases) {
     });
   }
 }
+
+test("prefers a broader wildcard that reaches the actual target of an exact alias", async (t) => {
+  const cwd = await createProject(
+    t,
+    { "@app/utils": ["./src/shared/utils"], "@app/*": ["./src/*"] },
+    "@app/utils",
+    "src/shared/utils",
+  );
+  await checkConsumer(t, cwd, "before", "src/shared/utils/index.ts");
+  const result = await unbarrelify({ cwd, write: true });
+  assert.deepEqual(result.deleted, [join(cwd, "src/shared/utils/index.ts")]);
+  assert.equal(await checkConsumer(t, cwd, "after", "src/shared/utils/value.ts"), "@app/shared/utils/value");
+});
 
 test("an exact alias falls back to an explicit TypeScript extension", async (t) => {
   const cwd = await createProject(t, { "@app/utils": ["./src/utils"] }, "@app/utils");
