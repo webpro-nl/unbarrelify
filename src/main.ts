@@ -207,6 +207,11 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
 
   await trackNonTsConsumers(ctx);
 
+  const scanned = new Set(files);
+  for (const [filePath, analysis] of ctx.fileCache) {
+    if (!scanned.has(filePath)) trackBarrelConsumers(analysis, filePath, ctx);
+  }
+
   ctx.progress({ type: "done" });
 
   const { deleted: deletable, preserved } = ctx.tracker.classify(ctx);

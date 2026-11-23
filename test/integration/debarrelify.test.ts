@@ -1536,6 +1536,61 @@ describe("unbarrelify integration tests", () => {
     }
   });
 
+  describe("outside-reexport fixture", () => {
+    test("keeps a barrel that a traced barrel outside cwd re-exports", async (t) => {
+      const root = await copyFixture(t, "outside-reexport");
+
+      const result = await unbarrelify({ cwd: join(root, "app"), files: ["**/*.ts"], write: true });
+
+      assert.deepEqual(result.modified, [join(root, "app/entry.ts")]);
+      assert.equal(
+        await read(join(root, "app/entry.ts")),
+        'import { n } from "./value.ts";\n\nexport const entry = n;\n',
+      );
+      assert.deepEqual(result.deleted, []);
+      assert.deepEqual(result.preserved, [
+        { path: join(root, "app/inner.ts"), reason: "barrel-reexport", consumers: [join(root, "app-shared/outer.ts")] },
+      ]);
+    });
+  });
+
+  describe("outside-reexport-other fixture", () => {
+    test("keeps a barrel that an analyzed barrel outside cwd re-exports without tracing it", async (t) => {
+      const root = await copyFixture(t, "outside-reexport-other");
+
+      const result = await unbarrelify({ cwd: join(root, "app"), files: ["**/*.ts"], write: true });
+
+      assert.equal(
+        await read(join(root, "app/entry.ts")),
+        'import { a } from "../shared/leaf.ts";\nimport { n } from "./value.ts";\n\nexport const sum = a + n;\n',
+      );
+      assert.deepEqual(result.deleted, []);
+      assert.deepEqual(result.preserved, [
+        { path: join(root, "app/inner.ts"), reason: "barrel-reexport", consumers: [join(root, "shared/outer.ts")] },
+      ]);
+    });
+  });
+
+  describe("vue-outer-barrel fixture", () => {
+    test("keeps a barrel that an unscanned barrel found through a Vue file re-exports", async (t) => {
+      const fixtureDir = await copyFixture(t, "vue-outer-barrel");
+
+      const result = await unbarrelify({ cwd: fixtureDir, files: ["*.ts"], write: true });
+
+      assert.deepEqual(result.modified, [join(fixtureDir, "entry.ts")]);
+      assert.deepEqual(result.deleted, []);
+      assert.deepEqual(
+        result.preserved
+          .map(({ path, reason, consumers }) => [path.slice(fixtureDir.length + 1), reason, consumers])
+          .sort(),
+        [
+          ["inner.mjs", "barrel-reexport", [join(fixtureDir, "outer.mjs")]],
+          ["outer.mjs", "non-ts-import", [join(fixtureDir, "page.vue")]],
+        ],
+      );
+    });
+  });
+
   describe("side-effect-import fixture", () => {
     for (const only of [[], ["barrel.ts"]]) {
       test(`keeps a barrel imported for its side effects (only: ${JSON.stringify(only)})`, async (t) => {
