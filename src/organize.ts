@@ -29,13 +29,13 @@ export function organizeImports(content: string, filePath: string): string {
 
   const hasOwnComments = (imp: ts.ImportDeclaration) =>
     ts.getLeadingCommentRanges(content, imp.getFullStart()) || ts.getTrailingCommentRanges(content, imp.end);
-  const hasComments = (imp: ts.ImportDeclaration) =>
-    hasOwnComments(imp) || containsComment(content.slice(imp.getStart(sourceFile), imp.end));
+  const hasInnerComments = (imp: ts.ImportDeclaration) =>
+    containsComment(content.slice(imp.getStart(sourceFile), imp.end));
 
   const edits: { start: number; end: number; text: string }[] = [];
   for (const group of groups) {
     if (group.length < 2) continue;
-    if (group.slice(1).some(hasComments)) continue;
+    if (group.some(hasInnerComments) || group.slice(1).some(hasOwnComments)) continue;
     // @ts-expect-error testCoalesceImports internal fn
     const coalesced: ts.ImportDeclaration[] = ts.OrganizeImports.testCoalesceImports(group, false, sourceFile, {});
     // The first import's comments would precede the first emitted declaration, which may not be that import.

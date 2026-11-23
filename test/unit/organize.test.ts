@@ -197,6 +197,16 @@ console.log(saved, bar);
     });
   }
 
+  for (const first of [
+    'import /* consumer contract */ { a } from "./value.ts";',
+    'import { a } from /* generated alias */ "./value.ts";',
+  ]) {
+    test(`keeps a first import with a comment inside it when a later default import leads the merge: ${first}`, () => {
+      const content = `${first}\nimport main from "./value.ts";\nconsole.log(a + main);\n`;
+      assert.equal(organizeImports(content, "consumer.ts"), content);
+    });
+  }
+
   test("keeps a comment on the first import with its declaration when coalescing splits the group", () => {
     const content = `// @ts-expect-error Upstream declaration lacks this type.
 import type { Missing } from "./value.ts";
