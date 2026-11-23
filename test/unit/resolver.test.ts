@@ -176,6 +176,16 @@ describe("resolver", () => {
       }
     });
 
+    test("keeps the extension of a JavaScript target reached only through package import keys", () => {
+      const dir = fixture("package-key-nested");
+      const options = {
+        originalSpecifier: "#barrel",
+        packageImportSpecifier: "#inner",
+        packageTargetSpecifier: "#inner",
+      };
+      assert.equal(buildSpecifier(join(dir, "consumer.mjs"), join(dir, "vendor/leaf.js"), options), "./vendor/leaf.js");
+    });
+
     test("does not drop the extension of a wildcard alias that another alias shadows", () => {
       const dir = fixture("alias-shadowed-wildcard");
       const { aliases } = initProjectConfig(dir);

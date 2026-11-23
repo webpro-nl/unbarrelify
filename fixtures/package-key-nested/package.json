@@ -1,0 +1,6 @@
+{
+  "type": "module",
+  "imports": {
+    "#barrel": "./vendor/barrel.js"
+  }
+}

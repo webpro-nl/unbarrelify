@@ -218,9 +218,13 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
   if (ext !== undefined) {
     finalExt = ext;
   } else if (originalSpecifier) {
-    finalExt =
-      getExtensionFromSpecifier(originalSpecifier) ??
-      (packageKey ? (packageTargetSpecifier && getExtensionFromSpecifier(packageTargetSpecifier)) || null : null);
+    finalExt = getExtensionFromSpecifier(originalSpecifier);
+    if (!finalExt && packageKey) {
+      // Package keys carry no import style. A JavaScript target loads as is, so its own extension is safe in any mode.
+      finalExt =
+        (packageTargetSpecifier && getExtensionFromSpecifier(packageTargetSpecifier)) ||
+        (extname(to) === ".js" ? ".js" : null);
+    }
   } else {
     finalExt = extname(to) || null;
   }
