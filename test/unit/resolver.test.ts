@@ -166,6 +166,16 @@ describe("resolver", () => {
       }
     });
 
+    test("reuses a package import key only when the consumer's package maps it to the target", () => {
+      const dir = fixture("package-key-scope");
+      const { aliases } = initProjectConfig(dir);
+      const options = { originalSpecifier: "../producer/barrel.mjs", packageImportSpecifier: "#internal", aliases };
+      const target = join(dir, "producer/value.mjs");
+      for (const app of ["app", "app-plain"]) {
+        assert.equal(buildSpecifier(join(dir, app, "consumer.mjs"), target, options), "../producer/value.mjs", app);
+      }
+    });
+
     test("does not drop the extension of a wildcard alias that another alias shadows", () => {
       const dir = fixture("alias-shadowed-wildcard");
       const { aliases } = initProjectConfig(dir);

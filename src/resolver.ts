@@ -27,6 +27,8 @@ const resolverOptions: NapiResolveOptions = {
 };
 
 const resolver = new ResolverFactory(resolverOptions);
+// Node resolves package imports from the consumer's package.json alone: no tsconfig paths, no extension probing.
+const packageImportResolver = new ResolverFactory({ ...resolverOptions, tsconfig: undefined, extensions: [] });
 const projectResolvers = new WeakMap<PathAliases, ResolverFactory>();
 
 const realpathCache = new Map<string, string>();
@@ -185,7 +187,7 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     const candidates =
       slash < 0 ? [packageKey] : [packageKey, packageKey.slice(0, slash + 1) + basename(to, extname(to)) + keyExt];
     for (const candidate of candidates) {
-      if (resolveModule(from, candidate, aliases ?? null) === to) return candidate;
+      if (packageImportResolver.resolveFileSync(from, candidate).path === to) return candidate;
     }
   }
 
