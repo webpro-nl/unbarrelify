@@ -141,5 +141,6 @@ export interface Result {
   deleted: string[];
   preserved: PreservedBarrel[];
   untraceableImports: UntraceableImport[];
+  errors: Array<{ file: string; error: Error }>;
   exampleDiff?: string;
 }

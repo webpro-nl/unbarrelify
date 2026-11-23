@@ -1,10 +1,12 @@
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
-import fs, { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import fs, { chmod, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { unbarrelify } from "../../src/index.ts";
 import { copyFixture } from "../helpers.ts";
 
@@ -46,6 +48,10 @@ for (const consumers of [["failed.ts"], ["written.ts", "failed.ts"]]) {
       assert.ok(!result.deleted.includes(barrel));
       assert.ok(!result.modified.includes(failed));
       assert.deepEqual(result.preserved, [{ path: barrel, reason: "consumer-error", consumers: [failed] }]);
+      assert.deepEqual(
+        result.errors.map(({ file }) => file),
+        [failed],
+      );
 
       if (consumers.includes("written.ts")) {
         const written = join(dir, "written.ts");
@@ -99,6 +105,10 @@ test("does not report a barrel as deleted when deleting it fails", async (t) => 
     const result = await unbarrelify({ cwd: fixtureDir, files: ["**/*.ts"], write: true });
 
     assert.deepEqual(result.deleted, [join(fixtureDir, "index.ts")]);
+    assert.deepEqual(
+      result.errors.map(({ file }) => file),
+      [failing],
+    );
     assert.ok(existsSync(failing));
     assert.ok(errors.mock.calls.some((call) => call.arguments.includes(unlinkError.message)));
     const deletedLines = logs.mock.calls.flatMap((call) => String(call.arguments[0]).split("\n"));
@@ -108,6 +118,30 @@ test("does not report a barrel as deleted when deleting it fails", async (t) => 
     syncBuiltinESMExports();
   }
 });
+
+const cliPath = fileURLToPath(new URL("../../src/cli.ts", import.meta.url));
+const skipPermissions = process.platform === "win32" || process.getuid?.() === 0;
+
+for (const [action, target, mode] of [
+  ["deleting a barrel", "sub", 0o555],
+  ["writing a consumer", "consumer.ts", 0o444],
+] as const) {
+  test(`CLI exits 1 when ${action} fails`, { skip: skipPermissions }, async (t) => {
+    const fixtureDir = await copyFixture(t, "chained-barrels");
+    const path = join(fixtureDir, target);
+    const { mode: originalMode } = await stat(path);
+    await chmod(path, mode);
+
+    try {
+      const cli = spawnSync(process.execPath, [cliPath, "--write"], { cwd: fixtureDir, encoding: "utf-8" });
+
+      assert.equal(cli.status, 1, cli.stderr);
+      assert.match(cli.stderr, /Encountered 1 error\(s\) during processing/);
+    } finally {
+      await chmod(path, originalMode);
+    }
+  });
+}
 
 for (const options of [{ write: true }, { write: false }, { write: true, check: true }]) {
   test(`retains successful rewrite behavior for ${JSON.stringify(options)}`, async (t) => {

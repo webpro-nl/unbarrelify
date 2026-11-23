@@ -324,7 +324,7 @@ export async function main(): Promise<void> {
     console.error(`\n${styleText("cyan", "ℹ")} Run with --write to apply these changes.`);
   }
 
-  if (args.check && (result.modified.length > 0 || result.deleted.length > 0)) {
+  if (result.errors.length > 0 || (args.check && (result.modified.length > 0 || result.deleted.length > 0))) {
     process.exit(1);
   }
 }

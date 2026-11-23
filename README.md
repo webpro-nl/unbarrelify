@@ -137,6 +137,7 @@ interface Result {
   modified: string[];
   deleted: string[];
   preserved: PreservedBarrel[];
+  errors: Array<{ file: string; error: Error }>;
 }
 
 interface PreservedBarrel {

@@ -247,7 +247,7 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
       })
     : undefined;
 
-  return { modified, deleted, preserved, untraceableImports: ctx.tracker.untraceableImports, exampleDiff };
+  return { modified, deleted, preserved, untraceableImports: ctx.tracker.untraceableImports, errors, exampleDiff };
 }
 
 export function isBarrel(filePath: string, analysis: File, ctx: Context): boolean {
