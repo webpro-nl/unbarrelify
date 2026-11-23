@@ -209,9 +209,10 @@ async function traceExport(
       effectiveName = {
         name: exportItem.exportedAsDefault,
         alias: localName === exportItem.exportedAsDefault ? undefined : localName,
+        isType: name.isType,
       };
     } else if (alias) {
-      effectiveName = { name: alias, alias: name.alias ?? name.name };
+      effectiveName = { name: alias, alias: name.alias ?? name.name, isType: name.isType };
     } else {
       effectiveName = name;
     }

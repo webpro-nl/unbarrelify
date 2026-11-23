@@ -16,6 +16,14 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { url, first } from "./local.mjs";'],
     deleted: ["index.mjs"],
   },
+  "type-alias-keeps-type": {
+    consumer: "consumer.ts",
+    rewritten: [
+      'import type { Original as Token } from "./types.ts";',
+      'import type { Original as Fallback } from "./types.ts";',
+    ],
+    deleted: ["barrel.ts"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {
