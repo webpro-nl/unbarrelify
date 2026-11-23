@@ -148,7 +148,8 @@ interface PreservedBarrel {
     | "dynamic-import"
     | "star-reexport"
     | "untraceable-import"
-    | "barrel-reexport";
+    | "barrel-reexport"
+    | "consumer-error";
   consumers: string[];
 }
 ```
@@ -193,6 +194,7 @@ This prevents barrel files from getting deleted:
 - Namespace imports are not modified, use `--unsafe-namespace` to rewrite (e.g. `import * as NS from "barrel"`).
 - Imports with names that cannot be traced are not modified, so the imported barrel file is not deleted.
 - Barrel files re-exported by a preserved barrel file are not deleted.
+- Files that cannot be written are not modified, so the imported barrel file is not deleted.
 
 The output in CLI prints "Preserved barrel files" with details.
 

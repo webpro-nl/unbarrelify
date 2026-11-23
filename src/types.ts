@@ -125,7 +125,8 @@ export interface PreservedBarrel {
     | "dynamic-import"
     | "star-reexport"
     | "untraceable-import"
-    | "barrel-reexport";
+    | "barrel-reexport"
+    | "consumer-error";
   consumers: string[];
 }
 

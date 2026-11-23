@@ -199,6 +199,7 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
       const err = error instanceof Error ? error : new Error(String(error));
       console.error(`Error processing ${rel(filePath)}:`, err.message);
       errors.push({ file: filePath, error: err });
+      ctx.tracker.failedFiles.add(filePath);
     }
   }
 

@@ -44,7 +44,7 @@ for (const consumers of [["failed.ts"], ["written.ts", "failed.ts"]]) {
       assert.ok(existsSync(barrel), "the unchanged consumer still needs its barrel");
       assert.ok(!result.deleted.includes(barrel));
       assert.ok(!result.modified.includes(failed));
-      assert.ok(result.preserved.some((entry) => entry.path === barrel && entry.consumers.includes(failed)));
+      assert.deepEqual(result.preserved, [{ path: barrel, reason: "consumer-error", consumers: [failed] }]);
 
       if (consumers.includes("written.ts")) {
         const written = join(dir, "written.ts");

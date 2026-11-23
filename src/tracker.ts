@@ -11,6 +11,7 @@ interface BarrelState {
 export class BarrelTracker {
   readonly barrels = new Map<string, BarrelState>();
   readonly untraceableImports: UntraceableImport[] = [];
+  readonly failedFiles = new Set<string>();
 
   register(barrelPath: string): boolean {
     if (this.barrels.has(barrelPath)) return false;
@@ -115,12 +116,17 @@ export class BarrelTracker {
     const starConsumers: string[] = [];
     const untracedConsumers: string[] = [];
     const barrelConsumers: string[] = [];
+    const failedConsumers: string[] = [];
     const untraced = new Set(
       this.untraceableImports.filter((entry) => entry.barrelPath === barrelPath).map((entry) => entry.consumerPath),
     );
 
     for (const consumer of state.consumers) {
       if (state.rewrittenConsumers.has(consumer) || toDelete.has(consumer)) continue;
+      if (this.failedFiles.has(consumer)) {
+        failedConsumers.push(consumer);
+        continue;
+      }
       if (state.starConsumers.has(consumer)) {
         starConsumers.push(consumer);
         continue;
@@ -143,6 +149,7 @@ export class BarrelTracker {
     if (starConsumers.length > 0) results.push({ reason: "star-reexport", consumers: starConsumers });
     if (untracedConsumers.length > 0) results.push({ reason: "untraceable-import", consumers: untracedConsumers });
     if (barrelConsumers.length > 0) results.push({ reason: "barrel-reexport", consumers: barrelConsumers });
+    if (failedConsumers.length > 0) results.push({ reason: "consumer-error", consumers: failedConsumers });
     return results;
   }
 }

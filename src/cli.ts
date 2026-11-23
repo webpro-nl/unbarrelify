@@ -176,6 +176,7 @@ export async function main(): Promise<void> {
     const starReExports = result.preserved.filter((p) => p.reason === "star-reexport");
     const untraceableBarrels = result.preserved.filter((p) => p.reason === "untraceable-import");
     const barrelReExports = result.preserved.filter((p) => p.reason === "barrel-reexport");
+    const failedBarrels = result.preserved.filter((p) => p.reason === "consumer-error");
 
     if (skipped.length > 0) {
       console.error(
@@ -254,6 +255,18 @@ export async function main(): Promise<void> {
         `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (re-exported by preserved barrel files):`,
       );
       for (const { path, consumers } of barrelReExports) {
+        console.error(`  ${rel(path)}`);
+        for (const consumer of consumers ?? []) {
+          console.error(`    └─ ${rel(consumer)}`);
+        }
+      }
+    }
+
+    if (failedBarrels.length > 0) {
+      console.error(
+        `\n${styleText("cyan", "ℹ")} ${styleText("underline", "Preserved barrel files")} (consumers could not be processed, see errors above):`,
+      );
+      for (const { path, consumers } of failedBarrels) {
         console.error(`  ${rel(path)}`);
         for (const consumer of consumers ?? []) {
           console.error(`    └─ ${rel(consumer)}`);
