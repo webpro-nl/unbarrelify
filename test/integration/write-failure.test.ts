@@ -6,6 +6,7 @@ import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { unbarrelify } from "../../src/index.ts";
+import { copyFixture } from "./helpers.ts";
 
 async function createProject(t: TestContext, consumers: string[]) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), "unbarrelify-write-failure-")));
@@ -80,6 +81,33 @@ for (const name of ["unreadable.ts", "unreadable.vue"]) {
     }
   });
 }
+
+test("does not report a barrel as deleted when deleting it fails", async (t) => {
+  const fixtureDir = await copyFixture(t, "chained-barrels");
+  const failing = join(fixtureDir, "sub/index.ts");
+  const originalUnlink = fs.unlink;
+  const unlinkError = Object.assign(new Error("simulated unlink failure"), { code: "EPERM" });
+  const errors = t.mock.method(console, "error", () => {});
+  const logs = t.mock.method(console, "log", () => {});
+  const unlinker = t.mock.method(fs, "unlink", async (...args: Parameters<typeof fs.unlink>) => {
+    if (args[0] === failing) throw unlinkError;
+    return originalUnlink(...args);
+  });
+  syncBuiltinESMExports();
+
+  try {
+    const result = await unbarrelify({ cwd: fixtureDir, files: ["**/*.ts"], write: true });
+
+    assert.deepEqual(result.deleted, [join(fixtureDir, "index.ts")]);
+    assert.ok(existsSync(failing));
+    assert.ok(errors.mock.calls.some((call) => call.arguments.includes(unlinkError.message)));
+    const deletedLines = logs.mock.calls.flatMap((call) => String(call.arguments[0]).split("\n"));
+    assert.ok(!deletedLines.some((line) => line.includes("deleted:") && line.includes("sub/index.ts")));
+  } finally {
+    unlinker.mock.restore();
+    syncBuiltinESMExports();
+  }
+});
 
 for (const options of [{ write: true }, { write: false }, { write: true, check: true }]) {
   test(`retains successful rewrite behavior for ${JSON.stringify(options)}`, async (t) => {

@@ -209,16 +209,10 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
 
   ctx.progress({ type: "done" });
 
-  const { deleted, preserved } = ctx.tracker.classify(ctx);
+  const { deleted: deletable, preserved } = ctx.tracker.classify(ctx);
+  const deleted: string[] = [];
 
-  if (modified.length > 0) {
-    console.log(modified.map((p) => `${styleText("yellow", "modified:")} ${rel(p)}`).join("\n"));
-  }
-  if (deleted.length > 0) {
-    console.log(deleted.map((p) => `${styleText("red", "deleted:")} ${rel(p)}`).join("\n"));
-  }
-
-  for (const barrelPath of deleted) {
+  for (const barrelPath of deletable) {
     if (ctx.write && !ctx.check) {
       try {
         await unlink(barrelPath);
@@ -226,8 +220,17 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
         const err = error instanceof Error ? error : new Error(String(error));
         console.error(`Error deleting ${barrelPath}:`, err.message);
         errors.push({ file: barrelPath, error: err });
+        continue;
       }
     }
+    deleted.push(barrelPath);
+  }
+
+  if (modified.length > 0) {
+    console.log(modified.map((p) => `${styleText("yellow", "modified:")} ${rel(p)}`).join("\n"));
+  }
+  if (deleted.length > 0) {
+    console.log(deleted.map((p) => `${styleText("red", "deleted:")} ${rel(p)}`).join("\n"));
   }
 
   if (errors.length > 0) {
