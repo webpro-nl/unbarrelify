@@ -46,10 +46,11 @@ export function organizeImports(content: string, filePath: string): string {
     for (const [index, imp] of group.entries()) {
       const start = imp.getStart(sourceFile);
       const lineStart = content.lastIndexOf("\n", start - 1) + 1;
-      const lineEnd = content.indexOf("\n", imp.end);
+      const lineBreak = content.indexOf("\n", imp.end);
+      const lineEnd = lineBreak === -1 ? content.length : lineBreak + 1;
       const ownLine = !content.slice(lineStart, start).trim() && !content.slice(imp.end, lineEnd).trim();
-      if (index > 0 && lineEnd !== -1 && ownLine) {
-        edits.push({ start: lineStart, end: lineEnd + 1, text: "" });
+      if (index > 0 && ownLine) {
+        edits.push({ start: lineStart, end: lineEnd, text: "" });
       } else {
         const eol = /\r\n/.test(content) ? "\r\n" : "\n";
         edits.push({ start, end: imp.end, text: index === 0 ? organized.join(eol) : "" });

@@ -179,4 +179,11 @@ console.log(saved, bar);
     assert.ok(result.includes("// Public export\nexport const saved = foo;"));
     assert.ok(result.includes("// Consumer\nconsole.log(saved, bar);"));
   });
+
+  for (const eol of ["\n", "\r\n"]) {
+    test(`removes a final duplicate without a trailing newline with its line (${JSON.stringify(eol)})`, () => {
+      const content = `import { a } from "./v";${eol}  import { b } from "./v";  `;
+      assert.equal(organizeImports(content, "consumer.ts"), `import { a, b } from "./v";${eol}`);
+    });
+  }
 });
