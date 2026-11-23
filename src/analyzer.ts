@@ -23,7 +23,7 @@ export function parseSpecifier(specifier: string): ParsedSpecifier {
     const ch = specifier.charCodeAt(i);
     if (ch === CHAR_EXCLAMATION) {
       lastBang = i;
-    } else if (ch === CHAR_QUESTION || ch === CHAR_HASH) {
+    } else if (ch === CHAR_QUESTION || (ch === CHAR_HASH && i !== lastBang + 1)) {
       suffixStart = i;
       break;
     }
@@ -139,7 +139,9 @@ export async function buildExportMap(
 
     if (isAbsolute(resolvedPath)) {
       await processLocalExport(exports, node, resolvedPath, specifier, pos, sourceFileCache);
-    } else {
+    } else if (!specifier.startsWith("#")) {
+      // The resolver returns a bare string for external or unresolved imports.
+      // Without a concrete target, a package-private key cannot be moved safely.
       processExternalExport(exports, node, specifier, pos);
     }
   }
@@ -190,7 +192,7 @@ async function processLocalExport(
       exportStar: !node.exportClause,
       exportStarIsTypeOnly: !node.exportClause ? node.isTypeOnly : undefined,
       reExportedNs: namespace,
-      externalSpecifier: specifier.startsWith(".") ? undefined : specifier,
+      externalSpecifier: specifier.startsWith(".") || specifier.startsWith("#") ? undefined : specifier,
     });
   }
 }

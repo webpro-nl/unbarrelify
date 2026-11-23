@@ -59,6 +59,8 @@ export interface Rewrite {
   defaultName?: string;
   isTypeOnly?: boolean;
   originalSpecifier?: string;
+  packageImportSpecifier?: string;
+  packageTargetSpecifier?: string;
   specifierPrefix?: string;
   specifierSuffix?: string;
   unsafeNsName?: string; // For --unsafe-namespace: the namespace identifier name

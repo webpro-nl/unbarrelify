@@ -1,9 +1,9 @@
-import { dirname, extname, relative } from "node:path";
+import { basename, dirname, extname, relative } from "node:path";
 import { realpathSync } from "node:fs";
 import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
 import { getExtensionFromSpecifier, tryMapToAlias } from "./config.ts";
-import type { PathAliases } from "./types.ts";
+import type { PathAliases, Rewrite } from "./types.ts";
 import { JS_EXT_PATTERN, RESOLVER_EXTENSIONS, TS_EXTENSIONS } from "./constants.ts";
 
 const resolverOptions: NapiResolveOptions = {
@@ -86,11 +86,22 @@ export function ensureExtension(path: string, ext: string | null): string {
 interface SpecifierOptions {
   ext?: string | null;
   originalSpecifier?: string;
+  packageImportSpecifier?: string;
+  packageTargetSpecifier?: string;
   aliases?: PathAliases | null;
 }
 
 export function buildSpecifier(from: string, to: string, options: SpecifierOptions = {}): string {
-  const { ext, originalSpecifier, aliases } = options;
+  const { ext, originalSpecifier, aliases, packageImportSpecifier, packageTargetSpecifier } = options;
+  const packageKey = packageImportSpecifier ?? (originalSpecifier?.startsWith("#") ? originalSpecifier : undefined);
+  if (packageKey) {
+    const slash = packageKey.lastIndexOf("/");
+    const candidates =
+      slash < 0 ? [packageKey] : [packageKey, packageKey.slice(0, slash + 1) + basename(to, extname(to))];
+    for (const candidate of candidates) {
+      if (resolveModule(from, candidate, aliases ?? null) === to) return candidate;
+    }
+  }
 
   if (originalSpecifier && aliases) {
     const aliasSpecifier = tryMapToAlias(to, aliases, originalSpecifier);
@@ -117,7 +128,9 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
   if (ext !== undefined) {
     finalExt = ext;
   } else if (originalSpecifier) {
-    finalExt = getExtensionFromSpecifier(originalSpecifier);
+    finalExt =
+      getExtensionFromSpecifier(originalSpecifier) ??
+      (packageKey ? (packageTargetSpecifier && getExtensionFromSpecifier(packageTargetSpecifier)) || null : null);
   } else {
     finalExt = extname(to) || null;
   }
@@ -125,6 +138,23 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
   const realTo = finalExt && TS_EXTENSIONS.has(finalExt) ? to : ensureExtension(to, finalExt);
   const relPath = relative(realFromDir, realTo);
   return relPath.startsWith(".") ? relPath : `./${relPath}`;
+}
+
+export function buildRewriteSpecifier(
+  from: string,
+  to: string,
+  rewrite: Rewrite,
+  options: Pick<SpecifierOptions, "aliases" | "ext">,
+): string {
+  const base =
+    rewrite.externalSpecifier ??
+    buildSpecifier(from, to, {
+      ...options,
+      originalSpecifier: rewrite.originalSpecifier,
+      packageImportSpecifier: rewrite.packageImportSpecifier,
+      packageTargetSpecifier: rewrite.packageTargetSpecifier,
+    });
+  return (rewrite.specifierPrefix ?? "") + base + (rewrite.specifierSuffix ?? "");
 }
 
 function inferAliasSpecifier(originalSpecifier: string, targetPath: string): string | null {

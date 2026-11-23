@@ -7,7 +7,7 @@ import {
   createUnsafeNamespaceDeclaration,
 } from "./factory.ts";
 import { printNode } from "./printer.ts";
-import { buildSpecifier } from "./resolver.ts";
+import { buildRewriteSpecifier } from "./resolver.ts";
 import type { RewriteContext } from "./rewriter.ts";
 import type { Rewrite } from "./types.ts";
 
@@ -15,6 +15,7 @@ export interface ExampleCandidate {
   original: string;
   targetMap: Map<string, Rewrite>;
   filePath: string;
+  singleQuote: boolean;
 }
 
 export function extractImportLine(text: string): string {
@@ -38,13 +39,7 @@ export function formatExampleDiff(
   const unsafeNsIdentifiers: string[] = [];
 
   for (const [targetFilePath, rewrite] of targetMap) {
-    const specifier =
-      rewrite.externalSpecifier ??
-      buildSpecifier(filePath, targetFilePath, {
-        ext: ctx.ext,
-        originalSpecifier: rewrite.originalSpecifier,
-        aliases: ctx.aliases,
-      });
+    const specifier = buildRewriteSpecifier(filePath, targetFilePath, rewrite, ctx);
 
     if (rewrite.unsafeNsName) {
       unsafeNsName = rewrite.unsafeNsName;
@@ -54,11 +49,13 @@ export function formatExampleDiff(
     }
 
     if (rewrite.reExportedNs) {
-      replacements.push(printNode(createNsImportDeclaration(specifier, rewrite.reExportedNs), dummySource));
+      replacements.push(
+        printNode(createNsImportDeclaration(specifier, rewrite.reExportedNs, ctx.singleQuote), dummySource),
+      );
     } else if (rewrite.type === "import") {
-      replacements.push(printNode(createImportDeclaration(rewrite, specifier), dummySource));
+      replacements.push(printNode(createImportDeclaration(rewrite, specifier, ctx.singleQuote), dummySource));
     } else {
-      replacements.push(printNode(createReExportDeclaration(rewrite, specifier), dummySource));
+      replacements.push(printNode(createReExportDeclaration(rewrite, specifier, ctx.singleQuote), dummySource));
     }
   }
 

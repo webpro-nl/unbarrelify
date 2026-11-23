@@ -10,7 +10,7 @@ import {
 import { isBarrel } from "./main.ts";
 import { organizeImports } from "./organize.ts";
 import { printNode } from "./printer.ts";
-import { buildSpecifier } from "./resolver.ts";
+import { buildRewriteSpecifier } from "./resolver.ts";
 import type {
   Context,
   ExportData,
@@ -45,6 +45,8 @@ export function buildRewriteItem(name: Name, importItem: ImportData, exportItem:
     reExportedNs: exportItem.reExportedNs,
     defaultName: isDefault && !isReExport ? (name.alias ?? importItem.name) : undefined,
     originalSpecifier: importItem.originalSpecifier,
+    packageTargetSpecifier: importItem.originalSpecifier?.startsWith("#") ? exportItem.specifier : undefined,
+    packageImportSpecifier: exportItem.specifier.startsWith("#") ? exportItem.specifier : undefined,
     specifierPrefix: importItem.specifierPrefix,
     specifierSuffix: importItem.specifierSuffix,
   };
@@ -74,14 +76,7 @@ export function applyRewrites(
     const unsafeNsIdentifiers: string[] = [];
 
     for (const [targetFilePath, rewrite] of rewriteMap) {
-      const baseSpecifier =
-        rewrite.externalSpecifier ??
-        buildSpecifier(filePath, targetFilePath, {
-          ext: ctx.ext,
-          originalSpecifier: rewrite.originalSpecifier,
-          aliases: ctx.aliases,
-        });
-      const specifier = (rewrite.specifierPrefix ?? "") + baseSpecifier + (rewrite.specifierSuffix ?? "");
+      const specifier = buildRewriteSpecifier(filePath, targetFilePath, rewrite, ctx);
 
       if (rewrite.unsafeNsName) {
         unsafeNsName = rewrite.unsafeNsName;
@@ -353,6 +348,7 @@ async function buildUnsafeNamespaceRewrites(
         members: [],
         unsafeNsName: item.name,
         originalSpecifier: item.originalSpecifier,
+        packageImportSpecifier: exportData.specifier.startsWith("#") ? exportData.specifier : undefined,
         specifierPrefix: item.specifierPrefix,
         specifierSuffix: item.specifierSuffix,
       });
@@ -445,6 +441,7 @@ async function traceStarExports(
           members: [],
           isTypeOnly,
           originalSpecifier: item.originalSpecifier,
+          packageImportSpecifier: exportData.specifier.startsWith("#") ? exportData.specifier : undefined,
           specifierPrefix: item.specifierPrefix,
           specifierSuffix: item.specifierSuffix,
         });
