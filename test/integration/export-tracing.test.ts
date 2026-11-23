@@ -24,6 +24,10 @@ const cases: Record<string, Expected> = {
     ],
     deleted: ["barrel.ts"],
   },
+  "namespace-clause-member": {
+    rewritten: ['import { sep } from "node:path";'],
+    deleted: ["index.mjs"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {

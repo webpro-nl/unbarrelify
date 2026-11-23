@@ -108,12 +108,14 @@ export function applyRewrites(
 }
 
 function isNameExported(name: Name, exportItem: ExportData): boolean {
+  if (exportItem.reExportedNs === name.name) return true;
+  // `export * as ns` exports only `ns`; the names recorded for it are the members of that namespace.
+  if (exportItem.reExportedNs && !exportItem.exportStar && !exportItem.namedExports) return false;
   if (exportItem.exportedNames.size === 0) {
     return !!exportItem.externalSpecifier;
   }
   if (exportItem.exportedNames.has(name.name)) return true;
   if (exportItem.aliases?.has(name.name)) return true;
-  if (exportItem.reExportedNs === name.name) return true;
   return false;
 }
 
