@@ -27,7 +27,7 @@ const resolverOptions: NapiResolveOptions = {
 };
 
 const resolver = new ResolverFactory(resolverOptions);
-// Node resolves package imports from the consumer's package.json alone: no tsconfig paths, no extension probing.
+// Package imports as Node resolves them: no tsconfig paths, no extension probing.
 const packageImportResolver = new ResolverFactory({ ...resolverOptions, tsconfig: undefined, extensions: [] });
 const projectResolvers = new WeakMap<PathAliases, ResolverFactory>();
 
@@ -187,7 +187,7 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     const candidates =
       slash < 0 ? [packageKey] : [packageKey, packageKey.slice(0, slash + 1) + basename(to, extname(to)) + keyExt];
     for (const candidate of candidates) {
-      if (packageImportResolver.resolveFileSync(from, candidate).path === to) return candidate;
+      if (resolvesTo(from, candidate, to, aliases)) return candidate;
     }
   }
 
@@ -196,7 +196,7 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     if (aliasSpecifier) {
       const detectedExt = ext !== undefined ? ext : getExtensionFromSpecifier(originalSpecifier);
       for (const specifier of aliasCandidates(aliasSpecifier, originalSpecifier, to, detectedExt, aliases)) {
-        if (resolveModule(from, specifier, aliases) === to) return specifier;
+        if (resolvesTo(from, specifier, to, aliases)) return specifier;
       }
     }
   }
@@ -206,7 +206,7 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
     if (aliasSpecifier) {
       const detectedExt = ext !== undefined ? ext : getExtensionFromSpecifier(originalSpecifier);
       for (const specifier of aliasCandidates(aliasSpecifier, originalSpecifier, to, detectedExt, aliases)) {
-        if (resolveModule(from, specifier, aliases ?? null) === to) return specifier;
+        if (resolvesTo(from, specifier, to, aliases)) return specifier;
       }
     }
   }
@@ -242,6 +242,12 @@ function specifierExtension(target: string, style: string | null): string | null
   if (moduleFormat) return moduleFormat;
   if (!style) return null;
   return style === ".jsx" && JSX_EXTENSIONS.has(targetExt) ? ".jsx" : ".js";
+}
+
+function resolvesTo(from: string, specifier: string, to: string, aliases: PathAliases | null | undefined): boolean {
+  // Node resolves a package import from the consumer's package.json alone, whatever tsconfig paths say.
+  if (specifier.startsWith("#")) return packageImportResolver.resolveFileSync(from, specifier).path === to;
+  return resolveModule(from, specifier, aliases ?? null) === to;
 }
 
 function aliasCandidates(

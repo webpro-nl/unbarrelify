@@ -176,6 +176,14 @@ describe("resolver", () => {
       }
     });
 
+    test("does not accept a package import key through tsconfig paths", () => {
+      const dir = fixture("package-key-alias-rejected");
+      const { aliases } = initProjectConfig(dir);
+      const options = { originalSpecifier: "#lib/barrel.mjs", aliases };
+      const specifier = buildSpecifier(join(dir, "consumer.mjs"), join(dir, "producer/leaf.mjs"), options);
+      assert.equal(specifier, "./producer/leaf.mjs");
+    });
+
     test("keeps the extension of a JavaScript target reached only through package import keys", () => {
       const dir = fixture("package-key-nested");
       const options = {

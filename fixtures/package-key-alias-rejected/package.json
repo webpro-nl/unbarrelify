@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "imports": {
+    "#lib/barrel.mjs": "./producer/barrel.mjs",
+    "#lib/leaf.mjs": "./other.mjs"
+  }
+}
