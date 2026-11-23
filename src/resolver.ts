@@ -181,8 +181,9 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
   const packageKey = packageImportSpecifier ?? (originalSpecifier?.startsWith("#") ? originalSpecifier : undefined);
   if (packageKey) {
     const slash = packageKey.lastIndexOf("/");
+    const keyExt = getExtensionFromSpecifier(packageKey) ?? "";
     const candidates =
-      slash < 0 ? [packageKey] : [packageKey, packageKey.slice(0, slash + 1) + basename(to, extname(to))];
+      slash < 0 ? [packageKey] : [packageKey, packageKey.slice(0, slash + 1) + basename(to, extname(to)) + keyExt];
     for (const candidate of candidates) {
       if (resolveModule(from, candidate, aliases ?? null) === to) return candidate;
     }

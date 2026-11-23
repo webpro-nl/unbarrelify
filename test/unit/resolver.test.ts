@@ -155,6 +155,17 @@ describe("resolver", () => {
       assert.equal(build("@/index.ts", "Button.tsx"), "@/Button.tsx");
     });
 
+    test("keeps the extension of a wildcard package import key", () => {
+      for (const [name, target] of [
+        ["package-key-wildcard", "src/leaf.js"],
+        ["package-key-wildcard-suffix", "src/leaf.ts"],
+      ]) {
+        const dir = fixture(name);
+        const options = { originalSpecifier: "#lib/barrel.js" };
+        assert.equal(buildSpecifier(join(dir, "consumer.mjs"), join(dir, target), options), "#lib/leaf.js", name);
+      }
+    });
+
     test("does not drop the extension of a wildcard alias that another alias shadows", () => {
       const dir = fixture("alias-shadowed-wildcard");
       const { aliases } = initProjectConfig(dir);
