@@ -1,0 +1,8 @@
+{
+  "type": "module",
+  "imports": {
+    "#lib": {
+      "import": "./barrel.mjs"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 import { isAbsolute } from "node:path";
 import { readFile } from "node:fs/promises";
 import ts from "typescript";
-import { resolveModule } from "./resolver.ts";
+import { isPackageImportKey, resolveModule } from "./resolver.ts";
 import type { Context, ExportMap, File, ImportMap, PathAliases } from "./types.ts";
 
 const CHAR_EXCLAMATION = 33; // '!'
@@ -14,7 +14,7 @@ interface ParsedSpecifier {
   suffix: string;
 }
 
-export function parseSpecifier(specifier: string): ParsedSpecifier {
+export function parseSpecifier(specifier: string, fromPath?: string): ParsedSpecifier {
   const len = specifier.length;
   let lastBang = -1;
   let suffixStart = len;
@@ -30,6 +30,9 @@ export function parseSpecifier(specifier: string): ParsedSpecifier {
   }
 
   const pathStart = lastBang + 1;
+  // A package-private key that contains `?` or `#` is a key as a whole, not a key with a suffix.
+  if (fromPath && suffixStart < len && isPackageImportKey(fromPath, specifier.slice(pathStart))) suffixStart = len;
+
   return {
     prefix: specifier.slice(0, pathStart),
     path: specifier.slice(pathStart, suffixStart),
@@ -284,7 +287,7 @@ function processImportDeclaration(
   aliases: PathAliases | null,
 ): void {
   const originalSpecifier = (node.moduleSpecifier as ts.StringLiteral).text;
-  const { prefix, path, suffix } = parseSpecifier(originalSpecifier);
+  const { prefix, path, suffix } = parseSpecifier(originalSpecifier, sourceFile.fileName);
   const resolvedPath = resolveModule(sourceFile.fileName, path, aliases);
   if (!resolvedPath || !isAbsolute(resolvedPath)) return;
 
@@ -357,7 +360,7 @@ function processReExportDeclaration(
   aliases: PathAliases | null,
 ): void {
   const originalSpecifier = (node.moduleSpecifier as ts.StringLiteral).text;
-  const { prefix, path, suffix } = parseSpecifier(originalSpecifier);
+  const { prefix, path, suffix } = parseSpecifier(originalSpecifier, sourceFile.fileName);
   const resolvedPath = resolveModule(sourceFile.fileName, path, aliases);
   if (!resolvedPath || !isAbsolute(resolvedPath)) return;
 

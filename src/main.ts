@@ -382,7 +382,7 @@ async function trackNonTsConsumers(ctx: Context): Promise<void> {
 
     const specifiers = IMPORT_PATTERNS.flatMap((pattern) => [...content.matchAll(pattern)].map((match) => match[1]));
     for (const rawSpecifier of specifiers) {
-      const { path: specifier } = parseSpecifier(rawSpecifier);
+      const { path: specifier } = parseSpecifier(rawSpecifier, nonTsFile);
 
       const resolved = resolveModule(nonTsFile, specifier, ctx.aliases);
       if (!resolved || !resolved.startsWith(ctx.base)) continue;

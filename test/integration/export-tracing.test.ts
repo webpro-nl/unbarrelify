@@ -173,6 +173,36 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { value } from "../producer/inner.mjs";'],
     deleted: ["producer/barrel.mjs"],
   },
+  "private-key-with-query": {
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: ["special.mjs"],
+  },
+  "private-key-with-fragment": {
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: ["special.mjs"],
+  },
+  "private-key-with-query-dynamic": {
+    consumer: "static.mjs",
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: [],
+  },
+  "private-key-with-query-conditional": {
+    rewritten: ['import { value } from "#lib?mode";'],
+    deleted: [],
+  },
+  "private-key-with-query-reexport": {
+    rewritten: ['export { value } from "./right.mjs";'],
+    deleted: ["special.mjs"],
+  },
+  "private-key-with-query-vue": {
+    consumer: "static.mjs",
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: [],
+  },
+  "private-key-conditional-target": {
+    rewritten: ['import { value } from "./leaf.mjs";'],
+    deleted: ["barrel.mjs"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {

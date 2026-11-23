@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "imports": {
+    "#lib": "./plain.mjs",
+    "#lib?mode": "./special.mjs"
+  }
+}
