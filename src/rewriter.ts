@@ -10,7 +10,7 @@ import {
 import { isBarrel } from "./main.ts";
 import { organizeImports } from "./organize.ts";
 import { printNode } from "./printer.ts";
-import { buildSpecifier } from "./resolver.ts";
+import { buildRewriteSpecifier } from "./resolver.ts";
 import type {
   Context,
   ExportData,
@@ -76,16 +76,7 @@ export function applyRewrites(
     const unsafeNsIdentifiers: string[] = [];
 
     for (const [targetFilePath, rewrite] of rewriteMap) {
-      const baseSpecifier =
-        rewrite.externalSpecifier ??
-        buildSpecifier(filePath, targetFilePath, {
-          ext: ctx.ext,
-          originalSpecifier: rewrite.originalSpecifier,
-          packageImportSpecifier: rewrite.packageImportSpecifier,
-          packageTargetSpecifier: rewrite.packageTargetSpecifier,
-          aliases: ctx.aliases,
-        });
-      const specifier = (rewrite.specifierPrefix ?? "") + baseSpecifier + (rewrite.specifierSuffix ?? "");
+      const specifier = buildRewriteSpecifier(filePath, targetFilePath, rewrite, ctx);
 
       if (rewrite.unsafeNsName) {
         unsafeNsName = rewrite.unsafeNsName;

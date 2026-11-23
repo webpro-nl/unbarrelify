@@ -3,7 +3,7 @@ import { realpathSync } from "node:fs";
 import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
 import { getExtensionFromSpecifier, tryMapToAlias } from "./config.ts";
-import type { PathAliases } from "./types.ts";
+import type { PathAliases, Rewrite } from "./types.ts";
 import { JS_EXT_PATTERN, RESOLVER_EXTENSIONS, TS_EXTENSIONS } from "./constants.ts";
 
 const resolverOptions: NapiResolveOptions = {
@@ -49,11 +49,11 @@ export function resolveModule(fromPath: string, specifier: string, aliases: Path
   const resolvedPath = result?.path ?? resolveWithProjectConfig(fromPath, cleanSpecifier, aliases);
 
   if (!resolvedPath) {
-    return isRelativeOrAbsolute || cleanSpecifier.startsWith("#") ? undefined : cleanSpecifier;
+    return isRelativeOrAbsolute ? undefined : cleanSpecifier;
   }
 
   if (resolvedPath.includes("node_modules")) {
-    return cleanSpecifier.startsWith("#") ? undefined : cleanSpecifier;
+    return cleanSpecifier;
   }
 
   return resolvedPath;
@@ -130,9 +130,7 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
   } else if (originalSpecifier) {
     finalExt =
       getExtensionFromSpecifier(originalSpecifier) ??
-      (packageKey
-        ? (packageTargetSpecifier && getExtensionFromSpecifier(packageTargetSpecifier)) || extname(to) || null
-        : null);
+      (packageKey ? (packageTargetSpecifier && getExtensionFromSpecifier(packageTargetSpecifier)) || null : null);
   } else {
     finalExt = extname(to) || null;
   }
@@ -140,6 +138,23 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
   const realTo = finalExt && TS_EXTENSIONS.has(finalExt) ? to : ensureExtension(to, finalExt);
   const relPath = relative(realFromDir, realTo);
   return relPath.startsWith(".") ? relPath : `./${relPath}`;
+}
+
+export function buildRewriteSpecifier(
+  from: string,
+  to: string,
+  rewrite: Rewrite,
+  options: Pick<SpecifierOptions, "aliases" | "ext">,
+): string {
+  const base =
+    rewrite.externalSpecifier ??
+    buildSpecifier(from, to, {
+      ...options,
+      originalSpecifier: rewrite.originalSpecifier,
+      packageImportSpecifier: rewrite.packageImportSpecifier,
+      packageTargetSpecifier: rewrite.packageTargetSpecifier,
+    });
+  return (rewrite.specifierPrefix ?? "") + base + (rewrite.specifierSuffix ?? "");
 }
 
 function inferAliasSpecifier(originalSpecifier: string, targetPath: string): string | null {

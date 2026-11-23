@@ -80,6 +80,7 @@ async function createContext(options: Options): Promise<Context> {
     preservedBarrels,
     includedBarrels,
     fileCache: new Map<string, File>(),
+    sourceFileCache: new Map(),
     isPackageEntryPoint: project.isPackageEntryPoint,
     progress,
     tracker,
@@ -236,7 +237,10 @@ async function processFiles(files: string[], ctx: Context): Promise<Result> {
   }
 
   const exampleDiff = bestExample
-    ? formatExampleDiff(bestExample.original, bestExample.targetMap, bestExample.filePath, baseRewriteContext)
+    ? formatExampleDiff(bestExample.original, bestExample.targetMap, bestExample.filePath, {
+        ...baseRewriteContext,
+        singleQuote: bestExample.singleQuote,
+      })
     : undefined;
 
   return { modified, deleted, preserved, untraceableImports: ctx.tracker.untraceableImports, exampleDiff };
@@ -317,7 +321,7 @@ function pickBestExample(
     if (targetMap.size > (current?.targetMap.size ?? 0)) {
       const [start, end] = posKey.split(":").map(Number);
       const original = extractImportLine(sourceFile.text.slice(start, end));
-      return { original, targetMap, filePath };
+      return { original, targetMap, filePath, singleQuote: detectSingleQuote(sourceFile) };
     }
   }
   return current;

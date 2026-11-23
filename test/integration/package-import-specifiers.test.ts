@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { pathToFileURL } from "node:url";
+import { stripVTControlCharacters } from "node:util";
+import ts from "typescript";
 import { unbarrelify } from "../../src/main.ts";
 import { resolveModule } from "../../src/resolver.ts";
 
@@ -69,12 +71,20 @@ test("keeps the ESM output extension when a TypeScript barrel uses a mapped .js 
   const cwd = await project(t, {
     "package.json": '{"type":"module","imports":{"#utils":"./src/utils/index.js"}}',
     "tsconfig.json": '{"compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext"}}',
-    "consumer.ts": 'import { value } from "#utils";\nexport const result = value;\n',
+    "consumer.ts": "import { value } from '#utils';\nexport const result = value;\n",
     "src/utils/index.ts": 'export { value } from "./value.js";\n',
     "src/utils/value.ts": "export const value = 1;\n",
   });
-  await unbarrelify({ cwd, write: true });
-  assert.match(await readFile(join(cwd, "consumer.ts"), "utf8"), /from "\.\/src\/utils\/value\.js"/);
+  const dry = await unbarrelify({ cwd, write: false });
+  const written = await unbarrelify({ cwd, write: true });
+  const actual = await readFile(join(cwd, "consumer.ts"), "utf8");
+  assert.match(actual, /from '\.\/src\/utils\/value\.js'/);
+  assert.deepEqual(dry.modified, written.modified);
+  assert.ok(
+    stripVTControlCharacters(dry.exampleDiff ?? "")
+      .split("\n")
+      .includes("+ " + actual.split("\n")[0]),
+  );
 });
 
 test("keeps a barrel used by a dynamic package import while rewriting a named consumer", async (t) => {
@@ -92,4 +102,76 @@ test("keeps a barrel used by a dynamic package import while rewriting a named co
   ]);
   assert.match(await readFile(join(cwd, "consumer.js"), "utf8"), /from "\.\/src\/utils\/value\.js"/);
   assert.equal(await readFile(join(cwd, "dynamic.js"), "utf8"), 'export const load = () => import("#utils");\n');
+});
+
+function assertBundlerTypeChecks(cwd: string, files: string[]): void {
+  const program = ts.createProgram(
+    files.map((file) => join(cwd, file)),
+    {
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      types: [],
+      noEmit: true,
+      allowImportingTsExtensions: false,
+      skipLibCheck: true,
+    },
+  );
+  assert.deepEqual(
+    ts.getPreEmitDiagnostics(program).map((d) => [d.code, ts.flattenDiagnosticMessageText(d.messageText, "\n")]),
+    [],
+  );
+}
+
+test("keeps extensionless TypeScript paths for both direct and cross-package consumers", async (t) => {
+  const cwd = await project(t, {
+    "app/package.json": '{"type":"module","imports":{"#utils":"./src/barrel.ts"}}',
+    "app/input.ts":
+      'import { value } from "#utils";\nimport { shared } from "../lib/src/barrel";\nexport const result = value + shared;\n',
+    "app/src/barrel.ts": 'export { value } from "./value";\n',
+    "app/src/value.ts": "export const value = 1;",
+    "lib/package.json": '{"type":"module","imports":{"#internal":"./src/internal.ts"}}',
+    "lib/src/barrel.ts": 'export * from "#internal";\n',
+    "lib/src/internal.ts": "export const shared = 2;",
+  });
+  assertBundlerTypeChecks(cwd, ["app/input.ts"]);
+  const result = await unbarrelify({ cwd, write: true });
+  assert.deepEqual(result.deleted.sort(), [join(cwd, "app/src/barrel.ts"), join(cwd, "lib/src/barrel.ts")]);
+  const text = await readFile(join(cwd, "app/input.ts"), "utf8");
+  assert.match(text, /from "\.\/src\/value"/);
+  assert.match(text, /from "\.\.\/lib\/src\/internal"/);
+  assertBundlerTypeChecks(cwd, ["app/input.ts"]);
+});
+
+test("reuses the barrel's own private star export for a consumer in the same package", async (t) => {
+  const cwd = await project(t, {
+    "package.json": '{"type":"module","imports":{"#internal":"./src/internal.js"}}',
+    "src/barrel.js": 'export * from "#internal";\n',
+    "src/internal.js": "export const value = 1;",
+    "consumer.js": 'import { value } from "./src/barrel.js";\nexport const result = value;\n',
+  });
+  const result = await unbarrelify({ cwd, write: true });
+  assert.deepEqual(result.deleted, [join(cwd, "src/barrel.js")]);
+  const from = join(cwd, "consumer.js");
+  assert.match(await readFile(from, "utf8"), /from "#internal"/);
+  assert.equal((await import(pathToFileURL(from).href)).result, 1);
+});
+
+test("does not copy a package-private dependency key that resolves to a different package in the consumer", async (t) => {
+  const cwd = await project(t, {
+    "lib/package.json": '{"type":"module","imports":{"#dep":"original-dep"}}',
+    "lib/node_modules/original-dep/package.json": '{"name":"original-dep","type":"module","exports":"./index.js"}',
+    "lib/node_modules/original-dep/index.js": "export const value = 1;",
+    "lib/barrel.js": 'export { value } from "#dep";\n',
+    "app/package.json": '{"type":"module","imports":{"#dep":"./unrelated.js"}}',
+    "app/unrelated.js": "export const value = 99;",
+    "app/consumer.js": 'import { value } from "../lib/barrel.js";\nexport const result = value;\n',
+  });
+  const result = await unbarrelify({ cwd, write: true });
+  assert.deepEqual(result.deleted, []);
+  assert.deepEqual(result.preserved, [
+    { path: join(cwd, "lib/barrel.js"), reason: "untraceable-import", consumers: [join(cwd, "app/consumer.js")] },
+  ]);
+  const from = join(cwd, "app/consumer.js");
+  assert.match(await readFile(from, "utf8"), /from "\.\.\/lib\/barrel\.js"/);
+  assert.equal((await import(pathToFileURL(from).href)).result, 1);
 });
