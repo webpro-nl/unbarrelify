@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "imports": {
+    "#inner": "./neutral.ts",
+    "#inner?flavor": "./leaf.ts"
+  }
+}

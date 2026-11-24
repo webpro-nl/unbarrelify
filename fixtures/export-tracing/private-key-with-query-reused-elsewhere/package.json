@@ -1,0 +1,8 @@
+{
+  "type": "module",
+  "imports": {
+    "#outer": "./nested/barrel.ts",
+    "#inner": "./neutral.ts",
+    "#inner?flavor": "./other.ts"
+  }
+}

@@ -111,8 +111,12 @@ function readImports(packageJsonPath: string): Record<string, unknown> {
   }
 }
 
-function resolvePackageImportKey(fromPath: string, key: string): string | undefined {
-  if (!/^#.*[?#]/.test(key)) return undefined;
+function isLiteralPackageImportKey(key: string): boolean {
+  return /^#.*[?#]/.test(key);
+}
+
+function resolvePackageImportKey(fromPath: string, key: string, targetResolver = resolver): string | undefined {
+  if (!isLiteralPackageImportKey(key)) return undefined;
 
   for (let dir = dirname(fromPath); ; dir = dirname(dir)) {
     const packageJsonPath = join(dir, "package.json");
@@ -120,7 +124,7 @@ function resolvePackageImportKey(fromPath: string, key: string): string | undefi
       const entry = findImportEntry(readImports(packageJsonPath), key);
       if (!entry) return undefined;
       const target = selectTarget(entry.target, entry.match);
-      return (target && resolver.resolveFileSync(packageJsonPath, target).path) || key;
+      return (target && targetResolver.resolveFileSync(packageJsonPath, target).path) || key;
     }
     if (dir === dirname(dir)) return undefined;
   }
@@ -262,6 +266,9 @@ function specifierExtension(target: string, style: string | null): string | null
 
 function resolvesTo(from: string, specifier: string, to: string, aliases: PathAliases | null | undefined): boolean {
   // Node resolves a package import from the consumer's package.json alone, whatever tsconfig paths say.
+  if (isLiteralPackageImportKey(specifier)) {
+    return resolvePackageImportKey(from, specifier, packageImportResolver) === to;
+  }
   if (specifier.startsWith("#")) return packageImportResolver.resolveFileSync(from, specifier).path === to;
   return resolveModule(from, specifier, aliases ?? null) === to;
 }
