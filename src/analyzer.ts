@@ -313,6 +313,7 @@ function processImportDeclaration(
       type: "ns",
       pos,
       members: [],
+      isTypeOnly: clause.isTypeOnly,
       originalSpecifier: path,
       specifierPrefix,
       specifierSuffix,

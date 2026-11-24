@@ -366,7 +366,15 @@ export async function buildRewrites(analysis: File, filePath: string, ctx: Conte
           }
           const finalIsBarrel = isBarrel(finalPath, await analyzeFile(finalPath, ctx), ctx);
           if (!finalIsBarrel && (exportData.exportedNames.size > 0 || exportData.externalSpecifier)) {
-            addRewrite({ name: item.name }, item, finalExport, finalPath, rewrites, added, true);
+            addRewrite(
+              { name: item.name, isType: item.isTypeOnly },
+              item,
+              finalExport,
+              finalPath,
+              rewrites,
+              added,
+              true,
+            );
           }
         } else if (localExports.length > 1 && ctx.unsafeNamespace) {
           await buildUnsafeNamespaceRewrites(item, importedFile.exports, rewrites, ctx);

@@ -261,6 +261,11 @@ const cases: Record<string, Expected> = {
     rewritten: ['import type * as B from "./leaf.ts";'],
     deleted: ["barrel.ts"],
   },
+  "type-namespace-import": {
+    consumer: "consumer.ts",
+    rewritten: ['import type * as NS from "./leaf.ts";'],
+    deleted: ["barrel.ts"],
+  },
   "private-key-generated-require-first": {
     rewritten: ['import { value } from "./vendor/good.mjs";'],
     deleted: ["vendor/barrel.mjs"],
