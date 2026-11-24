@@ -13,8 +13,8 @@ import {
   TS_EXTENSIONS,
 } from "./constants.ts";
 
-// The conditions Node applies to an ES module import.
-const conditionNames = ["import", "node", "default"];
+// The conditions Node applies to an ES module import by default.
+const conditionNames = ["node-addons", "node", "import", "module-sync", "default"];
 
 const resolverOptions: NapiResolveOptions = {
   tsconfig: "auto",

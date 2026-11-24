@@ -261,6 +261,14 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { value } from "./right.mjs";'],
     deleted: ["app/selected.mjs"],
   },
+  "private-key-with-query-module-sync": {
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: ["special.mjs"],
+  },
+  "private-key-with-query-node-addons": {
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: ["special.mjs"],
+  },
   "private-key-with-query-require-first-vue": {
     consumer: "static.mjs",
     rewritten: ['import { value } from "./right.mjs";'],

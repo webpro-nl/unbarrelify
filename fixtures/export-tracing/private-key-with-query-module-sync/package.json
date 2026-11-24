@@ -1,0 +1,10 @@
+{
+  "type": "module",
+  "imports": {
+    "#lib": "./plain.mjs",
+    "#lib?mode": {
+      "module-sync": "./special.mjs",
+      "default": "./plain.mjs"
+    }
+  }
+}
