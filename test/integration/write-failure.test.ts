@@ -1,29 +1,29 @@
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
-import fs, { chmod, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import fs, { chmod, readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { unbarrelify } from "../../src/index.ts";
 import { copyFixture } from "../helpers.ts";
 
-async function createProject(t: TestContext, consumers: string[]) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), "unbarrelify-write-failure-")));
-  t.after(() => rm(dir, { recursive: true }));
-  const barrel = join(dir, "barrel.ts");
-  const original = 'import { value } from "./barrel.ts";\nconsole.log(value);\n';
-  await writeFile(join(dir, "value.ts"), "export const value = 42;\n");
-  await writeFile(barrel, 'export { value } from "./value.ts";\n');
-  for (const name of consumers) await writeFile(join(dir, name), original);
-  return { dir, barrel, original };
+const original = 'import { value } from "./barrel.ts";\nconsole.log(value);\n';
+
+async function copyProject(t: TestContext, name: string) {
+  const dir = await copyFixture(t, name);
+  return { dir, barrel: join(dir, "barrel.ts"), original };
 }
 
-for (const consumers of [["failed.ts"], ["written.ts", "failed.ts"]]) {
+const failureSets: [string, string[]][] = [
+  ["write-failure-failed", ["failed.ts"]],
+  ["write-failure-written-failed", ["written.ts", "failed.ts"]],
+];
+
+for (const [fixture, consumers] of failureSets) {
   test(`keeps a barrel when writing one of ${consumers.length} consumers fails`, async (t) => {
-    const { dir, barrel, original } = await createProject(t, consumers);
+    const { dir, barrel, original } = await copyProject(t, fixture);
     const failed = join(dir, "failed.ts");
     const originalWrite = fs.writeFile;
     const writeError = Object.assign(new Error("simulated write failure"), { code: "EACCES" });
@@ -67,7 +67,7 @@ for (const consumers of [["failed.ts"], ["written.ts", "failed.ts"]]) {
 
 for (const name of ["unreadable.ts", "unreadable.vue"]) {
   test(`stops without deleting barrels when reading ${name} fails`, async (t) => {
-    const { dir, barrel } = await createProject(t, ["written.ts", name]);
+    const { dir, barrel } = await copyProject(t, `write-failure-${name.replace(".", "-")}`);
     const unreadable = join(dir, name);
     const originalRead = fs.readFile;
     const readError = Object.assign(new Error("simulated read failure"), { code: "EACCES" });
@@ -267,7 +267,7 @@ for (const pattern of ["missing/**/*.ts", "index.ts/**/*.ts"]) {
 
 for (const options of [{ write: true }, { write: false }, { write: true, check: true }]) {
   test(`retains successful rewrite behavior for ${JSON.stringify(options)}`, async (t) => {
-    const { dir, barrel, original } = await createProject(t, ["consumer.ts"]);
+    const { dir, barrel, original } = await copyProject(t, "write-failure-consumer");
     const consumer = join(dir, "consumer.ts");
     const result = await unbarrelify({ cwd: dir, files: ["*.ts"], ext: ".ts", ...options });
 
