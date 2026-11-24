@@ -359,14 +359,14 @@ export async function buildRewrites(analysis: File, filePath: string, ctx: Conte
           const [targetPath, exportData] = localExports[0];
           const targetFile = await analyzeFile(targetPath, ctx);
 
-          let finalPath = targetPath;
+          let [finalPath, finalExport] = localExports[0];
           if (targetFile.isBarrel) {
             const deepLocalExports = [...targetFile.exports.entries()].filter(([p]) => isAbsolute(p));
-            if (deepLocalExports.length === 1) finalPath = deepLocalExports[0][0];
+            if (deepLocalExports.length === 1) [finalPath, finalExport] = deepLocalExports[0];
           }
           const finalIsBarrel = isBarrel(finalPath, await analyzeFile(finalPath, ctx), ctx);
           if (!finalIsBarrel && (exportData.exportedNames.size > 0 || exportData.externalSpecifier)) {
-            addRewrite({ name: item.name }, item, exportData, finalPath, rewrites, added, true);
+            addRewrite({ name: item.name }, item, finalExport, finalPath, rewrites, added, true);
           }
         } else if (localExports.length > 1 && ctx.unsafeNamespace) {
           await buildUnsafeNamespaceRewrites(item, importedFile.exports, rewrites, ctx);

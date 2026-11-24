@@ -599,6 +599,7 @@ describe("rewriter", () => {
     for (const [name, specifier] of [
       ["package-key-shared-scope", "#inner"],
       ["package-key-nested-mjs", "./vendor/leaf.mjs"],
+      ["package-key-namespace-leaf", "./leaf.ts"],
     ]) {
       it(`rewrites through package import keys where the specifier is still known (${name})`, async () => {
         const dir = fixture(name);
