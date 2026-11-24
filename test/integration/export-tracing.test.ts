@@ -283,6 +283,15 @@ const cases: Record<string, Expected> = {
     deleted: [],
     untraceable: ["n"],
   },
+  "private-key-with-query-reused-blocked": {
+    rewritten: ['import { n } from "#outer";'],
+    deleted: [],
+    untraceable: ["n"],
+  },
+  "private-key-with-query-reused-null-array": {
+    rewritten: ['import { n } from "#inner?flavor";'],
+    deleted: ["nested/barrel.ts"],
+  },
   "type-namespace-alias": {
     consumer: "consumer.ts",
     rewritten: ['import type * as B from "./leaf.ts";'],

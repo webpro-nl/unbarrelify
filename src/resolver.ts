@@ -87,16 +87,26 @@ function isValidTarget(target: string): boolean {
     .some((segment) => segment === "." || segment === ".." || segment === "node_modules");
 }
 
-function selectTarget(target: unknown, match: string): string | undefined {
-  if (typeof target === "string") return isValidTarget(target) ? target.replaceAll("*", match) : undefined;
-  if (!target || typeof target !== "object") return undefined;
+// The target Node selects: a string, null when the key is blocked or invalid, undefined when no condition matches.
+// A condition's value is final once its condition matches; an array goes on to its next item.
+function selectTarget(target: unknown, match: string): string | null | undefined {
+  if (typeof target === "string") return isValidTarget(target) ? target.replaceAll("*", match) : null;
+  if (!target || typeof target !== "object") return null;
 
-  const candidates = Array.isArray(target)
-    ? target
-    : Object.entries(target).flatMap(([condition, value]) => (conditionNames.includes(condition) ? [value] : []));
-  for (const candidate of candidates) {
-    const selected = selectTarget(candidate, match);
-    if (selected) return selected;
+  if (Array.isArray(target)) {
+    let selected: null | undefined = target.length === 0 ? null : undefined;
+    for (const item of target) {
+      const itemTarget = selectTarget(item, match);
+      if (typeof itemTarget === "string") return itemTarget;
+      if (itemTarget === null) selected = null;
+    }
+    return selected;
+  }
+
+  for (const [condition, value] of Object.entries(target)) {
+    if (!conditionNames.includes(condition)) continue;
+    const selected = selectTarget(value, match);
+    if (selected !== undefined) return selected;
   }
   return undefined;
 }
