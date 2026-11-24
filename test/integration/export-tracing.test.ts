@@ -312,6 +312,12 @@ const cases: Record<string, Expected> = {
     rewritten: ['import type * as NS from "./leaf.ts";'],
     deleted: ["barrel.ts"],
   },
+  "type-namespace-unsafe": {
+    consumer: "consumer.ts",
+    unsafeNamespace: true,
+    rewritten: ['import type * as NS from "./barrel.ts";'],
+    deleted: [],
+  },
   "private-key-generated-require-first": {
     rewritten: ['import { value } from "./vendor/good.mjs";'],
     deleted: ["vendor/barrel.mjs"],

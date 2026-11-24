@@ -411,6 +411,8 @@ async function buildUnsafeNamespaceRewrites(
   rewrites: Rewrites,
   ctx: Context,
 ): Promise<void> {
+  // The rewrite builds a namespace object from values, which a type-only import cannot keep erased.
+  if (item.isTypeOnly) return;
   const targets = [...exports];
   // Each target is imported directly. One that is not a local source file (a package, ignored build output, or a
   // barrel this run may delete) would lose its names or break the import, so the declaration stays.
