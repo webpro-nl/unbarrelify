@@ -292,6 +292,16 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { n } from "#inner?flavor";'],
     deleted: ["nested/barrel.ts"],
   },
+  "private-key-with-query-reused-missing-js": {
+    rewritten: ['import { n } from "#outer";'],
+    deleted: [],
+    untraceable: ["n"],
+  },
+  "package-key-reused-missing-js": {
+    rewritten: ['import { n } from "#outer";'],
+    deleted: [],
+    untraceable: ["n"],
+  },
   "type-namespace-alias": {
     consumer: "consumer.ts",
     rewritten: ['import type * as B from "./leaf.ts";'],

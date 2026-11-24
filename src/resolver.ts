@@ -29,8 +29,13 @@ const resolverOptions: NapiResolveOptions = {
 };
 
 const resolver = new ResolverFactory(resolverOptions);
-// Package imports as Node resolves them: no tsconfig paths, no extension probing.
-const packageImportResolver = new ResolverFactory({ ...resolverOptions, tsconfig: undefined, extensions: [] });
+// Package imports as Node resolves them: no tsconfig paths, no extension probing or substitution.
+const packageImportResolver = new ResolverFactory({
+  ...resolverOptions,
+  tsconfig: undefined,
+  extensions: [],
+  extensionAlias: {},
+});
 const projectResolvers = new WeakMap<PathAliases, ResolverFactory>();
 
 const realpathCache = new Map<string, string>();
