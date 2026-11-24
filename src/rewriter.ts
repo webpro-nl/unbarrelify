@@ -10,7 +10,7 @@ import {
 import { isBarrel } from "./main.ts";
 import { organizeImports } from "./organize.ts";
 import { printNode } from "./printer.ts";
-import { buildRewriteSpecifier } from "./resolver.ts";
+import { buildRewriteSpecifier, hasSpecifierStyle } from "./resolver.ts";
 import type {
   Context,
   ExportData,
@@ -39,6 +39,16 @@ function packageSpecifiers(importItem: ImportData, exportItem: ExportData) {
     packageTargetSpecifier: importItem.originalSpecifier?.startsWith("#") ? exportItem.specifier : undefined,
     packageImportSpecifier: exportItem.specifier.startsWith("#") ? exportItem.specifier : undefined,
   };
+}
+
+// Without an import style for the target, the import and its barrel are kept.
+function hasRewriteStyle(importItem: ImportData, exportItem: ExportData, targetFilePath: string, ctx: Context) {
+  const { originalSpecifier } = importItem;
+  return hasSpecifierStyle(targetFilePath, {
+    ext: ctx.ext,
+    originalSpecifier,
+    ...packageSpecifiers(importItem, exportItem),
+  });
 }
 
 export function buildRewriteItem(
@@ -140,11 +150,13 @@ function addRewrite(
   targetFilePath: string,
   rewrites: Rewrites,
   added: Set<string>,
+  ctx: Context,
   isNamespace = false,
 ): boolean {
   const pos = `${importItem.pos.start}:${importItem.pos.end}`;
   const nameKey = `${pos}:${name.name}:${name.alias ?? ""}`;
   if (added.has(nameKey)) return false;
+  if (!hasRewriteStyle(importItem, exportItem, targetFilePath, ctx)) return false;
 
   let posRewrites = rewrites.get(pos);
   if (!posRewrites) {
@@ -240,13 +252,13 @@ async function traceExport(
       const isMovable = !external.startsWith("#");
       const target = isAbsolute(targetFilePath) ? targetFilePath : external;
       if (exportItem.exportedNames.has(name.name) || isNamespace) {
-        if (isMovable && addRewrite(effectiveName, importItem, exportItem, target, rewrites, added, isNamespace)) {
+        if (isMovable && addRewrite(effectiveName, importItem, exportItem, target, rewrites, added, ctx, isNamespace)) {
           return true;
         }
       } else if (exportItem.exportStar && (!isAbsolute(targetFilePath) || exportItem.exportedNames.size === 0)) {
         packageStars.set(
           external,
-          () => isMovable && addRewrite(name, importItem, exportItem, target, rewrites, added),
+          () => isMovable && addRewrite(name, importItem, exportItem, target, rewrites, added, ctx),
         );
       }
     } else if (!isIgnoredPath(targetFilePath, ctx.base)) {
@@ -255,7 +267,7 @@ async function traceExport(
       if (!targetFile.isBarrel) {
         if (
           isExported &&
-          addRewrite(effectiveName, importItem, exportItem, targetFilePath, rewrites, added, isNamespace)
+          addRewrite(effectiveName, importItem, exportItem, targetFilePath, rewrites, added, ctx, isNamespace)
         ) {
           return true;
         }
@@ -362,7 +374,7 @@ export async function buildRewrites(analysis: File, filePath: string, ctx: Conte
           }
           const finalIsBarrel = isBarrel(finalPath, await analyzeFile(finalPath, ctx), ctx);
           if (!finalIsBarrel && (exportData.exportedNames.size > 0 || exportData.externalSpecifier)) {
-            addRewrite({ name: item.name }, item, exportData, finalPath, rewrites, added, true);
+            addRewrite({ name: item.name }, item, exportData, finalPath, rewrites, added, ctx, true);
           }
         } else if (localExports.length > 1 && ctx.unsafeNamespace) {
           await buildUnsafeNamespaceRewrites(item, importedFile.exports, rewrites, ctx);
@@ -387,6 +399,10 @@ async function buildUnsafeNamespaceRewrites(
   rewrites: Rewrites,
   ctx: Context,
 ): Promise<void> {
+  for (const [targetFilePath, exportData] of exports) {
+    if (!hasRewriteStyle(item, exportData, targetFilePath, ctx)) return;
+  }
+
   const pos = `${item.pos.start}:${item.pos.end}`;
   let posRewrites = rewrites.get(pos);
   if (!posRewrites) {
@@ -441,7 +457,7 @@ async function buildStarReExportRewrites(
   rewrites: Rewrites,
   ctx: Context,
 ): Promise<boolean> {
-  if (!(await canFlattenStarExports(exports, ctx, new Set()))) return false;
+  if (!(await canFlattenStarExports(exports, item, ctx, new Set()))) return false;
 
   const pos = `${item.pos.start}:${item.pos.end}`;
   let posRewrites = rewrites.get(pos);
@@ -455,7 +471,12 @@ async function buildStarReExportRewrites(
   return true;
 }
 
-async function canFlattenStarExports(exports: ExportMap, ctx: Context, visited: Set<string>): Promise<boolean> {
+async function canFlattenStarExports(
+  exports: ExportMap,
+  item: ImportData,
+  ctx: Context,
+  visited: Set<string>,
+): Promise<boolean> {
   for (const [targetFilePath, exportData] of exports) {
     if (!isAbsolute(targetFilePath) || isIgnoredPath(targetFilePath, ctx.base)) return false;
     if (
@@ -471,7 +492,8 @@ async function canFlattenStarExports(exports: ExportMap, ctx: Context, visited: 
     visited.add(targetFilePath);
 
     const targetFile = await analyzeFile(targetFilePath, ctx);
-    if (targetFile.isBarrel && !(await canFlattenStarExports(targetFile.exports, ctx, visited))) return false;
+    if (targetFile.isBarrel && !(await canFlattenStarExports(targetFile.exports, item, ctx, visited))) return false;
+    if (!targetFile.isBarrel && !hasRewriteStyle(item, exportData, targetFilePath, ctx)) return false;
   }
 
   return true;

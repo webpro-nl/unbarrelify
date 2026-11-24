@@ -179,7 +179,7 @@ interface SpecifierOptions {
 }
 
 export function buildSpecifier(from: string, to: string, options: SpecifierOptions = {}): string {
-  const { ext, originalSpecifier, aliases, packageImportSpecifier, packageTargetSpecifier } = options;
+  const { ext, originalSpecifier, aliases, packageImportSpecifier } = options;
   const packageKey = packageImportSpecifier ?? (originalSpecifier?.startsWith("#") ? originalSpecifier : undefined);
   if (packageKey) {
     const slash = packageKey.lastIndexOf("/");
@@ -214,24 +214,37 @@ export function buildSpecifier(from: string, to: string, options: SpecifierOptio
   const fromDir = dirname(from);
   const realFromDir = cachedRealpath(fromDir);
 
-  let finalExt: string | null;
-  if (ext !== undefined) {
-    finalExt = ext;
-  } else if (originalSpecifier) {
-    finalExt = getExtensionFromSpecifier(originalSpecifier);
-    if (!finalExt && packageKey) {
-      // Package keys carry no import style. A JavaScript target loads as is, so its own extension is safe in any mode.
-      finalExt =
-        (packageTargetSpecifier && getExtensionFromSpecifier(packageTargetSpecifier)) ||
-        (extname(to) === ".js" ? ".js" : null);
-    }
-  } else {
-    finalExt = extname(to) || null;
-  }
-
-  const realTo = ensureExtension(to, specifierExtension(to, finalExt));
+  const realTo = ensureExtension(to, specifierExtension(to, specifierStyle(to, options) ?? null));
   const relPath = relative(realFromDir, realTo);
   return relPath.startsWith(".") ? relPath : `./${relPath}`;
+}
+
+type StyleOptions = Pick<
+  SpecifierOptions,
+  "ext" | "originalSpecifier" | "packageImportSpecifier" | "packageTargetSpecifier"
+>;
+
+// The extension style of a rewritten specifier: --ext, the consumer's spelling, or the barrel's spelling behind a
+// package key. Undefined when only package keys without an extension spell the route, since a key names no file.
+function specifierStyle(to: string, options: StyleOptions): string | null | undefined {
+  const { ext, originalSpecifier, packageImportSpecifier, packageTargetSpecifier } = options;
+  if (ext !== undefined) return ext;
+  if (!originalSpecifier) return extname(to) || null;
+  const consumerExt = getExtensionFromSpecifier(originalSpecifier);
+  const packageKey = packageImportSpecifier ?? (originalSpecifier.startsWith("#") ? originalSpecifier : undefined);
+  if (consumerExt || !packageKey) return consumerExt;
+  const barrelExt = packageTargetSpecifier && getExtensionFromSpecifier(packageTargetSpecifier);
+  if (barrelExt) return barrelExt;
+  // A JavaScript target loads as is, so its own extension is safe in any mode.
+  if (extname(to) === ".js") return ".js";
+  const keysOnly =
+    originalSpecifier.startsWith("#") && (!packageTargetSpecifier || packageTargetSpecifier.startsWith("#"));
+  return keysOnly ? undefined : null;
+}
+
+// A rewrite to a local file needs an import style; one to a package keeps its package specifier.
+export function hasSpecifierStyle(to: string, options: StyleOptions): boolean {
+  return !isAbsolute(to) || specifierStyle(to, options) !== undefined;
 }
 
 function specifierExtension(target: string, style: string | null): string | null {

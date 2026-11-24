@@ -565,5 +565,20 @@ describe("rewriter", () => {
       const [targetPath] = [...posRewrites.keys()];
       assert.ok(targetPath.endsWith("context.ts"));
     });
+
+    it("keeps an import whose only route is package import keys to a TypeScript file", async () => {
+      const dir = fixture("package-key-nested-ts");
+      const ctx = createTestContext();
+      const consumerPath = join(dir, "consumer.mjs");
+
+      const analysis = await analyzeFile(consumerPath, ctx);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
+
+      assert.equal(rewrites.size, 0);
+      assert.deepEqual(
+        ctx.tracker.untraceableImports.map((item) => item.name),
+        ["value"],
+      );
+    });
   });
 });
