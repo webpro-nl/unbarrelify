@@ -29,12 +29,15 @@ const resolverOptions: NapiResolveOptions = {
 };
 
 const resolver = new ResolverFactory(resolverOptions);
-// Package imports as Node resolves them: no tsconfig paths, no extension probing or substitution.
+// Package imports as Node resolves them for an ES module: no tsconfig paths, no extension probing or substitution,
+// and no directory resolution through `main` or an index file.
 const packageImportResolver = new ResolverFactory({
   ...resolverOptions,
   tsconfig: undefined,
   extensions: [],
   extensionAlias: {},
+  mainFields: [],
+  mainFiles: [],
 });
 const projectResolvers = new WeakMap<PathAliases, ResolverFactory>();
 

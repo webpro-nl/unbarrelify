@@ -1,0 +1,6 @@
+{
+  "type": "module",
+  "imports": {
+    "#inner": "./source/leaf.ts"
+  }
+}

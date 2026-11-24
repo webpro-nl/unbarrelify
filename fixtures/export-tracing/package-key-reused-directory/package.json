@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "imports": {
+    "#outer": "./vendor/barrel.ts",
+    "#inner": "./vendor/source"
+  }
+}

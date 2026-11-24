@@ -302,6 +302,16 @@ const cases: Record<string, Expected> = {
     deleted: [],
     untraceable: ["n"],
   },
+  "private-key-with-query-reused-directory": {
+    rewritten: ['import { n } from "#outer";'],
+    deleted: [],
+    untraceable: ["n"],
+  },
+  "package-key-reused-directory": {
+    rewritten: ['import { n } from "#outer";'],
+    deleted: [],
+    untraceable: ["n"],
+  },
   "type-namespace-alias": {
     consumer: "consumer.ts",
     rewritten: ['import type * as B from "./leaf.ts";'],
