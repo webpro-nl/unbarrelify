@@ -166,8 +166,11 @@ function addRewrite(
     posRewrites.set(targetFilePath, item);
   } else if (importItem.type === "ns") {
     existing.members.push({ name: name.name });
+  } else if (item.defaultName && !existing.defaultName) {
+    existing.defaultName = item.defaultName;
   } else {
-    existing.named.push(name);
+    // A declaration has one default binding, so another default of the same target is imported as `default as`.
+    existing.named.push(item.defaultName ? { ...name, alias: item.defaultName } : name);
   }
 
   return true;

@@ -54,6 +54,14 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { a } from "./lib.mjs";'],
     deleted: ["index.mjs"],
   },
+  "default-and-named-one-target": {
+    rewritten: ['import greet, { a } from "./lib.mjs";'],
+    deleted: ["index.mjs"],
+  },
+  "two-defaults-one-target": {
+    rewritten: ['import hello, { default as greet } from "./lib.mjs";'],
+    deleted: ["index.mjs"],
+  },
   "aliased-local-star": {
     consumer: "consumer.ts",
     rewritten: ['import { sep } from "node:path";'],
