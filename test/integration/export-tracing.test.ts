@@ -144,6 +144,11 @@ const cases: Record<string, Expected> = {
     rewritten: ['import * as ns from "#barrel";'],
     deleted: [],
   },
+  "unsafe-namespace-ignored-targets": {
+    unsafeNamespace: true,
+    rewritten: ['import * as ns from "./barrel.mjs";'],
+    deleted: [],
+  },
   "private-key-named-dependency": {
     rewritten: ['import { sep } from "./barrel.mjs";'],
     deleted: [],

@@ -411,9 +411,11 @@ async function buildUnsafeNamespaceRewrites(
   rewrites: Rewrites,
   ctx: Context,
 ): Promise<void> {
-  const targets = [...exports].filter(([path]) => isAbsolute(path) && !isIgnoredPath(path, ctx.base));
-  // An import generated from a barrel would depend on a file this run may delete, so the declaration stays.
+  const targets = [...exports];
+  // Each target is imported directly. One that is not a local source file (a package, ignored build output, or a
+  // barrel this run may delete) would lose its names or break the import, so the declaration stays.
   for (const [targetFilePath] of targets) {
+    if (!isAbsolute(targetFilePath) || isIgnoredPath(targetFilePath, ctx.base)) return;
     if (isBarrel(targetFilePath, await analyzeFile(targetFilePath, ctx), ctx)) return;
   }
 
