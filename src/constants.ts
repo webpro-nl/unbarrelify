@@ -5,6 +5,7 @@ export const DEFAULT_GLOBS = JS_EXTENSIONS.map((ext) => `**/*${ext}`);
 export const RESOLVER_EXTENSIONS = [...JS_EXTENSIONS, ".json"] as const;
 export const TS_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts"]);
 export const JSX_EXTENSIONS = new Set([".tsx", ".jsx"]);
+export const JS_RUNTIME_EXTENSIONS = new Set([".js", ".mjs", ".cjs"]);
 export const MODULE_FORMAT_EXTENSIONS = new Map([
   [".mts", ".mjs"],
   [".mjs", ".mjs"],

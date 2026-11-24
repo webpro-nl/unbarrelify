@@ -580,5 +580,36 @@ describe("rewriter", () => {
         ["value"],
       );
     });
+
+    it("keeps such an import rather than taking the name from a package star beside it", async () => {
+      const dir = fixture("package-key-nested-ts-star");
+      const ctx = createTestContext();
+      const consumerPath = join(dir, "consumer.mjs");
+
+      const analysis = await analyzeFile(consumerPath, ctx);
+      const rewrites = await buildRewrites(analysis, consumerPath, ctx);
+
+      assert.equal(rewrites.size, 0);
+      assert.deepEqual(
+        ctx.tracker.untraceableImports.map((item) => item.name),
+        ["value"],
+      );
+    });
+
+    for (const [name, specifier] of [
+      ["package-key-shared-scope", "#inner"],
+      ["package-key-nested-mjs", "./vendor/leaf.mjs"],
+    ]) {
+      it(`rewrites through package import keys where the specifier is still known (${name})`, async () => {
+        const dir = fixture(name);
+        const ctx = createTestContext();
+        const consumerPath = join(dir, "consumer.mjs");
+
+        const analysis = await analyzeFile(consumerPath, ctx);
+        const rewrites = await buildRewrites(analysis, consumerPath, ctx);
+
+        assert.match(applyRewrites(analysis.sourceFile!, rewrites, consumerPath), new RegExp(`from "${specifier}"`));
+      });
+    }
   });
 });

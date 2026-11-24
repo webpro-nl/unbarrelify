@@ -6,6 +6,7 @@ import { aliasNamesFile, getExtensionFromSpecifier, tryMapToAlias } from "./conf
 import type { PathAliases, Rewrite } from "./types.ts";
 import {
   JS_EXT_PATTERN,
+  JS_RUNTIME_EXTENSIONS,
   JSX_EXTENSIONS,
   MODULE_FORMAT_EXTENSIONS,
   RESOLVER_EXTENSIONS,
@@ -179,17 +180,9 @@ interface SpecifierOptions {
 }
 
 export function buildSpecifier(from: string, to: string, options: SpecifierOptions = {}): string {
-  const { ext, originalSpecifier, aliases, packageImportSpecifier } = options;
-  const packageKey = packageImportSpecifier ?? (originalSpecifier?.startsWith("#") ? originalSpecifier : undefined);
-  if (packageKey) {
-    const slash = packageKey.lastIndexOf("/");
-    const keyExt = getExtensionFromSpecifier(packageKey) ?? "";
-    const candidates =
-      slash < 0 ? [packageKey] : [packageKey, packageKey.slice(0, slash + 1) + basename(to, extname(to)) + keyExt];
-    for (const candidate of candidates) {
-      if (resolvesTo(from, candidate, to, aliases)) return candidate;
-    }
-  }
+  const { ext, originalSpecifier, aliases } = options;
+  const keySpecifier = packageKeySpecifier(from, to, options);
+  if (keySpecifier) return keySpecifier;
 
   if (originalSpecifier && aliases) {
     const aliasSpecifier = tryMapToAlias(to, aliases, originalSpecifier);
@@ -236,15 +229,22 @@ function specifierStyle(to: string, options: StyleOptions): string | null | unde
   const barrelExt = packageTargetSpecifier && getExtensionFromSpecifier(packageTargetSpecifier);
   if (barrelExt) return barrelExt;
   // A JavaScript target loads as is, so its own extension is safe in any mode.
-  if (extname(to) === ".js") return ".js";
+  if (JS_RUNTIME_EXTENSIONS.has(extname(to))) return extname(to);
   const keysOnly =
     originalSpecifier.startsWith("#") && (!packageTargetSpecifier || packageTargetSpecifier.startsWith("#"));
   return keysOnly ? undefined : null;
 }
 
-// A rewrite to a local file needs an import style; one to a package keeps its package specifier.
-export function hasSpecifierStyle(to: string, options: StyleOptions): boolean {
-  return !isAbsolute(to) || specifierStyle(to, options) !== undefined;
+// A package-private key the consumer can reuse: the barrel's own key, or its wildcard sibling for the target.
+function packageKeySpecifier(from: string, to: string, options: SpecifierOptions): string | undefined {
+  const { originalSpecifier, packageImportSpecifier, aliases } = options;
+  const packageKey = packageImportSpecifier ?? (originalSpecifier?.startsWith("#") ? originalSpecifier : undefined);
+  if (!packageKey) return undefined;
+  const slash = packageKey.lastIndexOf("/");
+  const keyExt = getExtensionFromSpecifier(packageKey) ?? "";
+  const candidates =
+    slash < 0 ? [packageKey] : [packageKey, packageKey.slice(0, slash + 1) + basename(to, extname(to)) + keyExt];
+  return candidates.find((candidate) => resolvesTo(from, candidate, to, aliases));
 }
 
 function specifierExtension(target: string, style: string | null): string | null {
@@ -286,14 +286,38 @@ export function buildRewriteSpecifier(
 ): string {
   let base = rewrite.externalSpecifier;
   if (!base || (isAbsolute(to) && !namesFile(from, base, to, options.aliases ?? null))) {
-    base = buildSpecifier(from, to, {
-      ...options,
-      originalSpecifier: rewrite.originalSpecifier,
-      packageImportSpecifier: rewrite.packageImportSpecifier,
-      packageTargetSpecifier: rewrite.packageTargetSpecifier,
-    });
+    base = buildSpecifier(from, to, rewriteSpecifierOptions(rewrite, options));
   }
   return (rewrite.specifierPrefix ?? "") + base + (rewrite.specifierSuffix ?? "");
+}
+
+// Whether buildRewriteSpecifier names the target without guessing an import style.
+export function canSpellRewrite(
+  from: string,
+  to: string,
+  rewrite: Rewrite,
+  options: Pick<SpecifierOptions, "aliases" | "ext">,
+): boolean {
+  if (!isAbsolute(to)) return true;
+  const external = rewrite.externalSpecifier;
+  if (external && namesFile(from, external, to, options.aliases ?? null)) return true;
+  const specifierOptions = rewriteSpecifierOptions(rewrite, options);
+  return (
+    packageKeySpecifier(from, to, specifierOptions) !== undefined || specifierStyle(to, specifierOptions) !== undefined
+  );
+}
+
+function rewriteSpecifierOptions(
+  rewrite: Rewrite,
+  options: Pick<SpecifierOptions, "aliases" | "ext">,
+): SpecifierOptions {
+  return {
+    ext: options.ext,
+    aliases: options.aliases,
+    originalSpecifier: rewrite.originalSpecifier,
+    packageImportSpecifier: rewrite.packageImportSpecifier,
+    packageTargetSpecifier: rewrite.packageTargetSpecifier,
+  };
 }
 
 // Node looks a package up without tsconfig paths.
