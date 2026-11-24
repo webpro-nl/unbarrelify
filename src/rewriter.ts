@@ -60,6 +60,7 @@ export function buildRewriteItem(
     members: importItem.type === "ns" && !isDefault ? [{ name: name.name }] : [],
     externalSpecifier: exportItem.externalSpecifier,
     reExportedNs: isNamespace ? (name.alias ?? name.name) : undefined,
+    isTypeOnly: isNamespace && name.isType ? true : undefined,
     defaultName: isDefault && !isNamedDefault ? localName : undefined,
     originalSpecifier: importItem.originalSpecifier,
     ...packageSpecifiers(importItem, exportItem),
@@ -103,7 +104,10 @@ export function applyRewrites(
 
       if (rewrite.reExportedNs) {
         replacements.push(
-          printNode(createNsImportDeclaration(specifier, rewrite.reExportedNs, singleQuote), sourceFile),
+          printNode(
+            createNsImportDeclaration(specifier, rewrite.reExportedNs, singleQuote, rewrite.isTypeOnly),
+            sourceFile,
+          ),
         );
       } else if (rewrite.type === "import") {
         replacements.push(printNode(createImportDeclaration(rewrite, specifier, singleQuote), sourceFile));

@@ -35,11 +35,12 @@ export function createNsImportDeclaration(
   specifier: string,
   namespace: string,
   singleQuote = false,
+  isTypeOnly = false,
 ): ts.ImportDeclaration {
   return ts.factory.createImportDeclaration(
     undefined,
     ts.factory.createImportClause(
-      false,
+      isTypeOnly,
       undefined,
       ts.factory.createNamespaceImport(ts.factory.createIdentifier(namespace)),
     ),

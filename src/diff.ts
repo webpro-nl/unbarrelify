@@ -50,7 +50,10 @@ export function formatExampleDiff(
 
     if (rewrite.reExportedNs) {
       replacements.push(
-        printNode(createNsImportDeclaration(specifier, rewrite.reExportedNs, ctx.singleQuote), dummySource),
+        printNode(
+          createNsImportDeclaration(specifier, rewrite.reExportedNs, ctx.singleQuote, rewrite.isTypeOnly),
+          dummySource,
+        ),
       );
     } else if (rewrite.type === "import") {
       replacements.push(printNode(createImportDeclaration(rewrite, specifier, ctx.singleQuote), dummySource));
