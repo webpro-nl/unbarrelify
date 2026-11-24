@@ -139,6 +139,11 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { value } from "./leaf.js";', 'import { id } from "./two.js";'],
     deleted: ["barrel.js"],
   },
+  "private-key-unsafe-namespace-barrel": {
+    unsafeNamespace: true,
+    rewritten: ['import * as ns from "#barrel";'],
+    deleted: [],
+  },
   "private-key-named-dependency": {
     rewritten: ['import { sep } from "./barrel.mjs";'],
     deleted: [],

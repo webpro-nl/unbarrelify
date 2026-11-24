@@ -411,6 +411,12 @@ async function buildUnsafeNamespaceRewrites(
   rewrites: Rewrites,
   ctx: Context,
 ): Promise<void> {
+  const targets = [...exports].filter(([path]) => isAbsolute(path) && !isIgnoredPath(path, ctx.base));
+  // An import generated from a barrel would depend on a file this run may delete, so the declaration stays.
+  for (const [targetFilePath] of targets) {
+    if (isBarrel(targetFilePath, await analyzeFile(targetFilePath, ctx), ctx)) return;
+  }
+
   const pos = `${item.pos.start}:${item.pos.end}`;
   let posRewrites = rewrites.get(pos);
   if (!posRewrites) {
@@ -418,13 +424,10 @@ async function buildUnsafeNamespaceRewrites(
     rewrites.set(pos, posRewrites);
   }
 
-  for (const [targetFilePath, exportData] of exports) {
-    if (!isAbsolute(targetFilePath)) continue;
-    if (isIgnoredPath(targetFilePath, ctx.base)) continue;
-
+  for (const [targetFilePath, exportData] of targets) {
     const targetFile = await analyzeFile(targetFilePath, ctx);
     const exportedNames = [...exportData.exportedNames];
-    if (exportedNames.length === 0 && !targetFile.isBarrel) {
+    if (exportedNames.length === 0) {
       for (const [, targetExportData] of targetFile.exports) {
         exportedNames.push(...targetExportData.exportedNames);
       }
@@ -451,10 +454,6 @@ async function buildUnsafeNamespaceRewrites(
         }
       }
       existing.unsafeNsName = item.name;
-    }
-
-    if (targetFile.isBarrel && ctx.only.length === 0) {
-      ctx.tracker.register(targetFilePath);
     }
   }
 }
