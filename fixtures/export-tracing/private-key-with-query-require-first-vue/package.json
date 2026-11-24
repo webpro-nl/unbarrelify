@@ -1,0 +1,10 @@
+{
+  "type": "module",
+  "imports": {
+    "#lib": "./plain.mjs",
+    "#lib?mode": {
+      "require": "./plain.mjs",
+      "import": "./special.mjs"
+    }
+  }
+}

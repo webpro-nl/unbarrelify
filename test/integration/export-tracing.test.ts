@@ -251,6 +251,15 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { value } from "./right.mjs";'],
     deleted: ["app/selected.mjs"],
   },
+  "private-key-with-query-require-first-vue": {
+    consumer: "static.mjs",
+    rewritten: ['import { value } from "./right.mjs";'],
+    deleted: [],
+  },
+  "private-key-generated-require-first": {
+    rewritten: ['import { value } from "./vendor/good.mjs";'],
+    deleted: ["vendor/barrel.mjs"],
+  },
 };
 
 for (const [name, expected] of Object.entries(cases)) {

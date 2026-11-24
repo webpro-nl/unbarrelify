@@ -1,0 +1,9 @@
+{
+  "type": "module",
+  "imports": {
+    "#leaf": {
+      "require": "./vendor/good.mjs",
+      "import": "./other.mjs"
+    }
+  }
+}
