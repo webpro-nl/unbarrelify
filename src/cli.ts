@@ -297,7 +297,9 @@ export async function main(): Promise<void> {
   }
 
   if (result.untraceableImports.length > 0) {
-    console.error(`\n${styleText("yellow", "⚠")} Untraceable imports (export not found in barrel or source file):`);
+    console.error(
+      `\n${styleText("yellow", "⚠")} Untraceable imports (no source file found that the consumer can import directly):`,
+    );
     const grouped = new Map<string, Map<string, string[]>>();
     for (const { barrelPath, consumerPath, name } of result.untraceableImports) {
       let byBarrel = grouped.get(barrelPath);
