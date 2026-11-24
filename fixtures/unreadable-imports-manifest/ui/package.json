@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "imports": {
+    "#theme": "./plain.mjs",
+    "#theme?active": "./live.mjs"
+  }
+}

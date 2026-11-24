@@ -253,6 +253,28 @@ for (const files of [undefined, ["**/*.ts"]]) {
   );
 }
 
+test(
+  "stops without deleting barrels when a package.json with package imports cannot be read",
+  { skip: skipPermissions },
+  async (t) => {
+    const fixtureDir = await copyFixture(t, "unreadable-imports-manifest");
+    const manifest = join(fixtureDir, "ui/package.json");
+    await chmod(manifest, 0o000);
+
+    try {
+      const options = { cwd: fixtureDir, only: ["ui/live.mjs"], write: true };
+      await assert.rejects(unbarrelify(options), (error: NodeJS.ErrnoException) => {
+        assert.equal(error.code, "EACCES");
+        assert.equal(error.path, manifest);
+        return true;
+      });
+    } finally {
+      await chmod(manifest, 0o644);
+    }
+    assert.ok(existsSync(join(fixtureDir, "ui/live.mjs")), "the Vue component still imports this barrel");
+  },
+);
+
 for (const pattern of ["missing/**/*.ts", "index.ts/**/*.ts"]) {
   test(`finds no files for a literal prefix that is not a directory (${pattern})`, async (t) => {
     const fixtureDir = await copyFixture(t, "simple-barrel");

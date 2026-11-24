@@ -101,9 +101,11 @@ function selectTarget(target: unknown, match: string): string | undefined {
   return undefined;
 }
 
+// A package.json that cannot be read stops the run: its keys decide which barrels a consumer imports.
 function readImports(packageJsonPath: string): Record<string, unknown> {
+  const content = readFileSync(packageJsonPath, "utf-8");
   try {
-    return JSON.parse(readFileSync(packageJsonPath, "utf-8")).imports ?? {};
+    return JSON.parse(content).imports ?? {};
   } catch {
     return {};
   }
