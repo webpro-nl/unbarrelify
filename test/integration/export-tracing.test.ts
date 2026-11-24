@@ -50,6 +50,10 @@ const cases: Record<string, Expected> = {
     rewritten: ['import { sep } from "node:path";'],
     deleted: ["index.mjs"],
   },
+  "local-named-then-namespace": {
+    rewritten: ['import { a } from "./lib.mjs";'],
+    deleted: ["index.mjs"],
+  },
   "aliased-local-star": {
     consumer: "consumer.ts",
     rewritten: ['import { sep } from "node:path";'],
